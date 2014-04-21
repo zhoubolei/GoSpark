@@ -1,5 +1,9 @@
 package spark
 
+import "container/list"
+import "net"
+//import "net/rpc"
+//import "log"
 // each machine runs only one worker, which can do multiple job at the same time.
 
 type Worker struct { 
@@ -13,10 +17,10 @@ type Worker struct {
   
   mem map[string] interface{}   // filename -> filedata , this filename is an identifier of any computation result 
   
-  nCore // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
-  jobThread map[int]
+  nCore int // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
+  jobThread map[int]int
 }
-
+/*
 // The master sent us a job
 func (wk *Worker) DoJob(arg *DoJobArgs, res *DoJobReply) error {
 }
@@ -61,3 +65,4 @@ func RunWorker(MasterAddress string, me string,
   wk.l.Close()
   DPrintf("RunWorker %s exit\n", me)    
 }
+*/

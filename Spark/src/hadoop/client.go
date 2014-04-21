@@ -1,6 +1,5 @@
-package main
+package hadoop
 
-import "fmt"
 import "log"
 import "os/exec"
 import "bufio"
@@ -47,27 +46,3 @@ func getSplitInfo(fileURI string) (*list.List) {
 	return l
 }
 
-func main(){
-
-    fileURI := "hdfs://127.0.0.1:54310/user/hduser/testSplitRead.txt";
-    
-	s := getSplitInfo(fileURI)
-	nsplit := s.Len();
-	
-	fmt.Printf("number of split: %d\n", nsplit);
-	for it := s.Front(); it != nil; it=it.Next() {
-	    slist := it.Value.([]string)
-	    for j:=0; j<len(slist); j++ {
-	        fmt.Printf(slist[j]);
-	    }
-	    fmt.Println();
-	}
-    
- 
-    scanner := getSplitScanner(fileURI, 0); // get the scanner of split 0
-    
-    for scanner.Scan() {
-		fmt.Println(scanner.Text()) // read one line of data in split
-	}
-	
-}

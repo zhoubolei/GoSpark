@@ -19,7 +19,7 @@ Add these in your .bashrc
 
 ```sh
 export HADOOP_HOME=/usr/local/hadoop   #-> where you install the hadoop
-export DSPROJECT_HOME=/home/drc/824project   #-> where you install the hadoop
+export DSPROJECT_HOME=$HOME/824project   #-> where you put our project
 export JAVA_HOME=/usr/lib/jvm/java-6-openjdk/   #-> where is the jdk installed
 
 lzohead () {

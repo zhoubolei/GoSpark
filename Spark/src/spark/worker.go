@@ -1,30 +1,54 @@
 package spark
 
-import "container/list"
-import "net"
-//import "net/rpc"
-//import "log"
+import (
+//  "container/list"
+  "net"
+  "net/rpc"
+  "hadoop"
+  "strings"
+  "fmt"
+  "log"
+)
 // each machine runs only one worker, which can do multiple job at the same time.
 
 type Worker struct { 
   l net.Listener
+  nRPC int
+  nJobs int
 
   name string // e.g. "127.0.0.1"
   port string // e.g. ":1234"
-  ReduceByName func(*list.List) *list.List   // key , values  -> key, value 
-  Reduce func(*list.List) *list.List         // values -> value 
-  Map func(*list.List) *list.List            // key, value -> key, value
   
-  
-  mem map[string] interface{}   // filename -> filedata , this filename is an identifier of any computation result 
+  mem map[string](map[int]interface{})   // filename -> split id -> filedata , this filename is an identifier of any computation result 
   
   nCore int // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
   jobThread map[int]int
 }
 // The master sent us a job
-func (wk *Worker) DoJob(arg *DoJobArgs, res *DoJobReply) error {
-  // TODO
+func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
+  // TODO other operations
+  if args.Operation == "LineCount" {
+    cnt := 0
+    scanner := hadoop.GetSplitScanner(args.File, args.SplitID) // get the scanner of current split
+    // TODO return error if not found
+    for scanner.Scan() {
+      scanner.Text() // read one line of data in the split
+      cnt++
+    }
+    if _, exists := wk.mem[args.File]; !exists {
+      wk.mem[args.File] = make(map[int]interface{})
+    }
+    wk.mem[args.File][args.SplitID] = cnt // store result in memory, wait for fetch
+  }
 
+  res.OK = true
+  return nil
+}
+
+func (wk *Worker) Fetch(args *FetchArgs, res *FetchReply) error {
+  res.Result = wk.mem[args.File][args.SplitID]
+  res.OK = true
+  // TODO return false if mem doesn't contain this result
   return nil
 }
 
@@ -46,7 +70,7 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
   args := &RegisterArgs{}
   args.Worker = me
   var reply RegisterReply
-  ok := call(master, "MapReduce.Register", args, &reply)
+  ok := call(master, "Master.Register", args, &reply)
   if ok == false {
     fmt.Printf("Register: RPC %s register error\n", master)
   }
@@ -54,17 +78,13 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
 
 // Set up a connection with the master, register with the master,
 // and wait for jobs from the master
-func RunWorker(MasterAddress string, MasterPort string, me string, port string,
-               MapFunc func(string) *list.List,
-               ReduceFunc func(string,*list.List) string, nRPC int) {
+func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int) {
   DPrintf("RunWorker %s%s\n", me, port)
   wk := new(Worker)
 
   // Todo: initialize worker
   wk.name = me
   wk.port = port
-  wk.Map = MapFunc
-  wk.Reduce = ReduceFunc
   wk.nRPC = nRPC
   rpcs := rpc.NewServer()
   rpcs.Register(wk)
@@ -73,6 +93,7 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string,
     log.Fatal("RunWorker: worker ", me, port, " error: ", e)
   }
   wk.l = l
+  wk.mem = make(map[string](map[int]interface{}))
   Register(MasterAddress, MasterPort, me, port)
 
   // DON'T MODIFY CODE BELOW

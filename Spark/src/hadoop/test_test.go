@@ -9,7 +9,7 @@ func TestBasicRead(t *testing.T) {
 //    fileURI := "hdfs://127.0.0.1:54310/user/hduser/testSplitRead.txt";
   fileURI := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv";
 
-	s := getSplitInfo(fileURI)
+	s := GetSplitInfo(fileURI)
 	nsplit := s.Len();
 	
 	fmt.Printf("This file has %d splits\n", nsplit);
@@ -21,7 +21,7 @@ func TestBasicRead(t *testing.T) {
 	    fmt.Println();
 	}
     
-    scanner := getSplitScanner(fileURI, 0); // get the scanner of split 0
+    scanner := GetSplitScanner(fileURI, 0); // get the scanner of split 0
     
     for scanner.Scan() {
 		fmt.Println(scanner.Text()) // read one line of data in split

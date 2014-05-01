@@ -16,3 +16,6 @@ func call(srv string, rpcname string,
   fmt.Println(err)
   return false
 }
+
+
+type Yielder chan interface{}

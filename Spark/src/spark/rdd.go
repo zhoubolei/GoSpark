@@ -3,10 +3,20 @@ package spark
 import (
 
 )
-/*
-type RDDChain struct {
 
-}*/
+
+type RDD interface {
+    Map(f MapperFunc) RDD
+    FlatMap(f FlatMapperFunc) RDD
+    Filter(f FilterFunc) RDD
+    ReduceByKey(fn ReducerFunc) RDD
+    
+    Reduce(fn ReducerFunc) interface{}
+    Collect() []interface{}
+    Count() int64
+}
+
+
 
 type DependType string
 
@@ -49,19 +59,9 @@ type Metadata struct{
 type ParentIters struct{
 }
 ////////////////////////////////////////
-type RDD struct {
-  //isFromFile int
-  //inputFile string
-  
-  id              int64
-  PartitionType   PartitionType // HashPartition / RangePartition
-  Partitions      Partitions
-  Function        Function   
-  OperationType   OperationType  // map, join, ..., HDFS file
-  Dependency      Dependency
-  Metadata        Metadata  // partitioning scheme and data placement
-  
-}
+
+
+
 
 // Return a list of Partition objects
 func (rdd *RDD) partitions (){
@@ -69,7 +69,7 @@ func (rdd *RDD) partitions (){
 }
 
 // List nodes where partition p can be accessed faster due to data locality
-func (rdd *RDD) PreferredLocations (p PartitionID) {
+func (rdd *RDD) PreferredLocations (p SplitID) {
 
 }
 
@@ -100,11 +100,6 @@ func (rdd *RDD) Map() {
 }
 
 func (rdd *RDD) ReduceByKey() {
-
-}
-
-///////////////////////////////////// RDD Transformations ////////
-func (rdd *RDD) Collect() {
 
 }
 

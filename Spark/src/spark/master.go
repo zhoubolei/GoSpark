@@ -35,10 +35,9 @@ type Master struct {
   jobCompleteStatus chan JobCompleteStatus
 }
 
-func MakeMapReduce(nmap int, nreduce int,
-                   file string, master string, port string) *Master {
+func MakeMaster(address string, port string) *Master {
   mr := Master{}
-  mr.MasterAddress = master
+  mr.MasterAddress = address
   mr.MasterPort = port
   mr.alive = true
   mr.registerChannel = make(chan string)

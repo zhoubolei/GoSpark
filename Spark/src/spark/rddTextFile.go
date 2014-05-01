@@ -1,5 +1,7 @@
 package spark
 
+import "fmt"
+
 type TextFileRDD struct {
     BaseRDD
     path      string
@@ -15,17 +17,20 @@ func (t *TextFileRDD) compute(split Split) Yielder {
 }
 
 func (t *TextFileRDD) init(ctx *Context, path string, numSplits int) {
-    t.BaseRDD.init(ctx, t)
-    t.path = path
+    //t.BaseRDD.init(ctx, t)
+    //t.path = path
 
 }
 
-func (t *_TextFileRDD) String() string {
+func (t *TextFileRDD) String() string {
     return fmt.Sprintf("TextFileRDD-%d <%s %d>", t.id, t.path, t.len())
 }
 
+
+
 func newTextFileRDD(ctx *Context, path string) RDD {
-    textRdd := &_TextFileRDD{}
-    textRdd.init(ctx, path, env.parallel)
+    textRdd := &TextFileRDD{}
+    nsplit := 3 // TODO: should have better way to get nsplit
+    textRdd.init(ctx, path, nsplit)
     return textRdd
 }

@@ -9,6 +9,23 @@ const (
   LineCount = "LineCount"
 )
 
+type Yielder chan interface{}
+type ReducerFn func(yield Yielder, partition int) interface{}   // for scheduler to run 
+
+type MapperFunc func(interface{}) interface{}
+type PartitionMapperFunc func(Yielder) Yielder
+type FlatMapperFunc func(interface{}) []interface{}
+type ReducerFunc func(interface{}, interface{}) interface{}
+type FilterFunc func(interface{}) bool
+type LoopFunc func(interface{})
+
+
+
+
+
+
+
+
 type JobType string
 
 // RPC arguments and replies.  Field names must start with capital letters,
@@ -81,4 +98,4 @@ func call(srv string, rpcname string,
 }
 
 
-type Yielder chan interface{}
+

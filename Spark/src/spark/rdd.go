@@ -14,6 +14,13 @@ type RDD interface {
     Reduce(fn ReducerFunc) interface{}
     Collect() []interface{}
     Count() int64
+    
+    
+    getContext() *Context
+    //compute(split Split) Yielder
+    len() int
+    getSplits() []Split
+    getSplit(int) Split
 }
 
 
@@ -41,69 +48,5 @@ const (
   Reduce = "Reduce"
 )  
 
-////////////////////////////////////////
-type PartitionID int64
-type Partitions struct{
-
-}
-////////////////////////////////////////
-
-type Function struct{
-
-}
-////////////////////////////////////////
-type Metadata struct{
-
-}
-////////////////////////////////////////
-type ParentIters struct{
-}
-////////////////////////////////////////
 
 
-
-
-// Return a list of Partition objects
-func (rdd *RDD) partitions (){
-
-}
-
-// List nodes where partition p can be accessed faster due to data locality
-func (rdd *RDD) PreferredLocations (p SplitID) {
-
-}
-
-// Return a list of dependencies
-func (rdd *RDD) Dependencies() Dependency{
-  return rdd.Dependency
-}
-
-// Compute the elements of partition p given iterators for its parent partitions
-func (rdd *RDD) Iterator(p PartitionID, parentIters ParentIters) {
-
-}
-
-// Return metadata specifying whether the RDD is hash/range partitioned
-func (rdd *RDD) Partitioner() {
-
-}
-
-///////////////////////////////////// function used in computation
-func (rdd *RDD) Persist() {
-
-}
-
-///////////////////////////////////// RDD Transformations ////////
-
-func (rdd *RDD) Map() {
-
-}
-
-func (rdd *RDD) ReduceByKey() {
-
-}
-
-///////////////////////////////////// RDD Transformations ////////
-func (rdd *RDD) Reduce() {
-
-}

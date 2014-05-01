@@ -52,12 +52,14 @@ type ParentIters struct{
 type RDD struct {
   //isFromFile int
   //inputFile string
-  PartitionType PartitionType // HashPartition / RangePartition
-  Partitions Partitions
-  Function Function   
-  OperationType OperationType  // map, join, ..., HDFS file
-  Dependency Dependency
-  Metadata Metadata  // partitioning scheme and data placement
+  
+  id              int64
+  PartitionType   PartitionType // HashPartition / RangePartition
+  Partitions      Partitions
+  Function        Function   
+  OperationType   OperationType  // map, join, ..., HDFS file
+  Dependency      Dependency
+  Metadata        Metadata  // partitioning scheme and data placement
   
 }
 

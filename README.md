@@ -43,15 +43,15 @@ export PATH=$PATH:$HOME/software/go/bin
 Testing
 --------
 
-1. Update master host name (and/or port number) in config.txt
+Update master host name (and/or port number) in config.txt.
 
-2. On master machine, run:
+On master machine, run:
 
 ```sh
 go test -run BasicMaster
 ```
 
-3. On worker machines, run:
+On worker machines, run:
 
 ```sh
 go test -run BasicWorker

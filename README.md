@@ -36,6 +36,24 @@ export CLASSPATH=${DSPROJECT_HOME}/HDFSSplitUtil/bin:`hadoop classpath`:${CLASSP
 
 # For Go
 export GOROOT=$HOME/software/go
+export GOPATH=${DSPROJECT_HOME}/Spark
 export PATH=$PATH:$HOME/software/go/bin
+```
+
+Testing
+--------
+
+1. Update master host name (and/or port number) in config.txt
+
+2. On master machine, run:
+
+```sh
+go test -run BasicMaster
+```
+
+3. On worker machines, run:
+
+```sh
+go test -run BasicWorker
 ```
 

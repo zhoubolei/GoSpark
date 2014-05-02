@@ -22,10 +22,6 @@ type LoopFunc func(interface{})
 
 
 
-
-
-
-
 type JobType string
 
 // RPC arguments and replies.  Field names must start with capital letters,

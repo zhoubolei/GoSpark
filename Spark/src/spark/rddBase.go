@@ -8,7 +8,7 @@ import (
 type BaseRDD struct {
     id              int64
     context         *Context
-    length          int
+    length          int       // number of splits
     splits          []Split
     
     //partitionType   PartitionType // HashPartition / RangePartition

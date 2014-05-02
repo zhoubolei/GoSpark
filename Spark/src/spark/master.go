@@ -19,14 +19,16 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 type WorkerInfo struct {
   address string // addr:port of the worker, e.g. "127.0.0.1:1234"
-  nCore int // TODO implement worker threads
-  splitId int
+  nCore int      // TODO implement worker threads
+  splitId int    // TODO peterkty: this should be specified in DoJobArgs 
 }
 
 type Master struct {
+  // TODO peterkty: these should be specified in DoJobArgs 
   file string  // Name of input file
   nsplits int
   operation JobType
+  // End TODO
   MasterAddress string // e.g. "127.0.0.1"
   MasterPort string // e.g. ":1234"
   registerChannel chan RegisterArgs

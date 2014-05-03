@@ -103,7 +103,6 @@ const (
   ReduceByKey = "ReduceByKey"
   Filter      = "Filter"
   Collect     = "Collect"
-  Count       = "Count"
 )  
 
 // SplitTypes

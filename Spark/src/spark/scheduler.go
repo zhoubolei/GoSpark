@@ -23,11 +23,13 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
   for i:=0; i<nOutputSplit; i++ {
     s := rdd.splits[i]
     reply := DoJobReply{}
+    args  := DoJobArgs{};
+    
     switch operationType {
     case "Collect":
-      args := DoJobArgs{Operation: "GetSplit", InputID: s.splitID};
+      args = DoJobArgs{Operation: "GetSplit", InputID: s.splitID};
     case "Reduce":
-      args := DoJobArgs{Operation: "Reduce", InputID: s.splitID};
+      args = DoJobArgs{Operation: "Reduce", InputID: s.splitID};
     }
     rnd := rand.Int() % len(s.hostname)
     for j:=0; j<len(s.hostname); j++ {
@@ -61,7 +63,7 @@ func NewScheduler() *Scheduler {
   
     address := master_ip 
     port := master_port
-    scheduler.master = MakeMaster("", "", address, port)   
-    
+    scheduler.master = MakeMaster(address, port)   
+
     return &scheduler
 }

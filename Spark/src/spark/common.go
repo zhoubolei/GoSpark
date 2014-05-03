@@ -18,9 +18,11 @@ func nrand() string {
 
 
 const (
-  LineCount = "LineCount"
   ReadHDFSSplit = "ReadHDFSSplit"
+  HasSplit = "HasSplit"
   GetSplit = "GetSplit"
+  Count = "Count"
+  MapJob = "Map"
 )
 
 type Yielder chan interface{}
@@ -66,7 +68,7 @@ type ShutdownReply struct {
 
 type DoJobArgs struct {
   Operation JobType
-  File string
+  HDFSFile string
   HDFSSplitID int
   InputID string
   OutputID string
@@ -76,6 +78,7 @@ type DoJobArgs struct {
 type DoJobReply struct {
   Result interface{}
   OK bool
+  NeedSplits []string
 }
 
 

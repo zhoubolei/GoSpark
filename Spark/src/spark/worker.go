@@ -1,7 +1,7 @@
 package spark
 
 import (
-//  "container/list"
+  "container/list"
   "net"
   "net/rpc"
   "hadoop"
@@ -19,7 +19,7 @@ type Worker struct {
   name string // e.g. "127.0.0.1"
   port string // e.g. ":1234"
   
-  mem map[string](map[int]interface{})   // filename -> split id -> filedata , this filename is an identifier of any computation result 
+  mem map[string]([]string)   // filename -> line id -> filedata , this filename is an identifier of any computation result 
   
   nCore int // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
   jobThread map[int]int
@@ -28,28 +28,55 @@ type Worker struct {
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   // TODO other operations
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
-  if args.Operation == "LineCount" {
-    cnt := 0
-    scanner := hadoop.GetSplitScanner(args.File, args.SplitID) // get the scanner of current split
-    // TODO return error if not found
+
+  switch args.Operation {
+  case ReadHDFSSplit:
+    // read whole split from HDFS
+    lines := list.New()
+    scanner, err := hadoop.GetSplitScanner(args.File, args.HDFSSplitID) // get the scanner of current split
+    if err != nil {
+      DPrintf("error reading file")
+      res.OK = false
+      return nil
+    }
     for scanner.Scan() {
-      scanner.Text() // read one line of data in the split
-      cnt++
+      lines.PushBack(scanner.Text()) // read one line of data in the split
     }
-    if _, exists := wk.mem[args.File]; !exists {
-      wk.mem[args.File] = make(map[int]interface{})
+    // conver to array, store to memory
+    n := lines.Len()
+    p := lines.Front()
+    wk.mem[args.OutputID] = make([]string, n)
+    for i := 0; i < n; i++ {
+      wk.mem[args.OutputID][i] = p.Value.(string)
+      p = p.Next()
     }
-    wk.mem[args.File][args.SplitID] = cnt // store result in memory, wait for fetch
+    res.Result = len(wk.mem[args.OutputID]) // return line count
+    res.OK = true
+/*
+  case LineCount:
+    if arr, exists := wk.mem[args.InputID]; !exists {
+      res.OK = false
+    } else {
+      res.Result = len(arr)
+      res.OK = true
+    }
+*/
+
+  case GetSplit:
+    if arr, exists := wk.mem[args.InputID]; !exists {
+      DPrintf("not found")
+      res.OK = false
+    } else {
+      res.Result = arr
+      res.OK = true
+    }
+
+  default:
+    DPrintf("unknown job")
+    res.OK = false
+
   }
 
-  res.OK = true
-  return nil
-}
-
-func (wk *Worker) Fetch(args *FetchArgs, res *FetchReply) error {
-  res.Result = wk.mem[args.File][args.SplitID]
-  res.OK = true
-  // TODO return false if mem doesn't contain this result
   return nil
 }
 
@@ -94,7 +121,7 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
     log.Fatal("RunWorker: worker ", me, port, " error: ", e)
   }
   wk.l = l
-  wk.mem = make(map[string](map[int]interface{}))
+  wk.mem = make(map[string]([]string))
   Register(MasterAddress, MasterPort, me, port)
 
   // DON'T MODIFY CODE BELOW

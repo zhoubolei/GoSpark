@@ -23,7 +23,7 @@ func TestBasicMaster(t *testing.T) {
   master_port := s.Text()
   fmt.Printf("master ip %s port %s\n", master_ip, master_port)
 
-  mr := MakeMaster("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv", "LineCount", master_ip, master_port)
+  mr := MakeMaster("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv", "ReadHDFSSplit", master_ip, master_port)
   <- mr.DoneChannel
   // TODO check
   //check(t, mr.file)

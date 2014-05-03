@@ -7,6 +7,8 @@ import (
 
 const (
   LineCount = "LineCount"
+  ReadHDFSSplit = "ReadHDFSSplit"
+  GetSplit = "GetSplit"
 )
 
 type Yielder chan interface{}
@@ -53,22 +55,13 @@ type ShutdownReply struct {
 type DoJobArgs struct {
   Operation JobType
   File string
-  SplitID int
+  HDFSSplitID int
+  InputID string
+  OutputID string
+  Function string
 }
 
 type DoJobReply struct {
-  OK bool
-}
-
-
-// fetch job result from workers
-
-type FetchArgs struct {
-  File string
-  SplitID int
-}
-
-type FetchReply struct {
   Result interface{}
   OK bool
 }

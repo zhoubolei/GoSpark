@@ -6,6 +6,7 @@ import (
   "net/rpc"
   "hadoop"
   "log"
+  "strconv"
 )
 
 const Debug=1
@@ -20,7 +21,7 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 type WorkerInfo struct {
   address string // addr:port of the worker, e.g. "127.0.0.1:1234"
   nCore int      // TODO implement worker threads
-  splitId int    // TODO peterkty: this should be specified in DoJobArgs 
+  jobId int    // TODO peterkty: this should be specified in DoJobArgs 
 }
 
 type Master struct {
@@ -43,13 +44,14 @@ type Master struct {
   // add any additional state here
   workerSuccChannel chan string
   workerFailChannel chan string
-  jobsStatus map[int]int // splitId -> 0:unassigned, 1:working, 2:finished
+  jobStatus map[int]int // job id -> 0:unassigned, 1:working, 2:finished
+  jobArgs map[int]DoJobArgs // job id -> args
 }
 
 func MakeMaster(file string, operation JobType, master string, port string) *Master {
   mr := Master{}
   mr.file = file
-  mr.nsplits = hadoop.GetSplitInfo(mr.file).Len()
+  mr.nsplits = hadoop.GetSplitInfo(mr.file).Len() // TODO return error if not found
   DPrintf("this file has %d splits", mr.nsplits)
   mr.operation = operation
   mr.MasterAddress = master
@@ -138,8 +140,8 @@ func (mr *Master) Run() {
   mr.DoneChannel <- true
 }
 
-func (mr *Master) assignJob(w string, splitid int) {
-  args := DoJobArgs{Operation:mr.operation, File:mr.file, SplitID:splitid}
+func (mr *Master) assignJob(w string, j int) {
+  args := mr.jobArgs[j]
   var reply DoJobReply
   ok := call(w, "Worker.DoJob", args, &reply)
   if ok == false { // RPC fails, keep looking for workers for the current job
@@ -149,27 +151,8 @@ func (mr *Master) assignJob(w string, splitid int) {
     DPrintf("assignJob reply failed")
     mr.workerFailChannel <- w
   } else { // current job is done, fetch result, ready for the next job
-    if mr.fetchResult(w, splitid) {
-      mr.workerSuccChannel <- w
-    } else {
-      mr.workerFailChannel <- w // although compute success, fail to fetch result
-    }
-  }
-}
-
-func (mr *Master) fetchResult(w string, splitid int) bool {
-  args := FetchArgs{File:mr.file, SplitID:splitid}
-  var reply FetchReply
-  ok := call(w, "Worker.Fetch", args, &reply)
-  if ok == false {
-    DPrintf("fetchResult RPC failed")
-    return false
-  } else if reply.OK == false {
-    DPrintf("fetchResult reply failed")
-    return false
-  } else {
-    DPrintf("worker %s split %d result %v", w, splitid, reply.Result)
-    return true
+    DPrintf("worker %s job id %d result %v", w, j, reply.Result)
+    mr.workerSuccChannel <- w
   }
 }
 
@@ -178,9 +161,11 @@ func (mr *Master) RunMaster() *list.List {
   mr.Workers = make(map[string]*WorkerInfo)
   mr.workerSuccChannel = make(chan string)
   mr.workerFailChannel = make(chan string)
-  mr.jobsStatus = make(map[int]int)
+  mr.jobStatus = make(map[int]int)
+  mr.jobArgs = make(map[int]DoJobArgs)
   for j := 0; j < mr.nsplits; j++ {
-    mr.jobsStatus[j] = 0
+    mr.jobStatus[j] = 0
+    mr.jobArgs[j] = DoJobArgs{Operation:mr.operation, File:mr.file, HDFSSplitID:j, OutputID:strconv.Itoa(j)} // TODO extend to other operations
   }
 
   // assign jobs to workers, exit when finished
@@ -194,7 +179,7 @@ func (mr *Master) RunMaster() *list.List {
     case wk, ok = <-mr.registerChannel:
       if ok {
         w = wk.Worker
-        mr.Workers[w] = &WorkerInfo{address:w, nCore:wk.NCore, splitId:-1}
+        mr.Workers[w] = &WorkerInfo{address:w, nCore:wk.NCore, jobId:-1}
         avail = true
         //DPrintf("received registration from worker %s", w)
       } else {
@@ -202,7 +187,7 @@ func (mr *Master) RunMaster() *list.List {
       }
     case w, ok = <-mr.workerSuccChannel:
       if ok {
-        mr.jobsStatus[mr.Workers[w].splitId] = 2 // mark job finished
+        mr.jobStatus[mr.Workers[w].jobId] = 2 // mark job finished
         avail = true // this worker is good
         //DPrintf("received success from worker %s", w)
       } else {
@@ -210,7 +195,7 @@ func (mr *Master) RunMaster() *list.List {
       }
     case w, ok = <-mr.workerFailChannel:
       if ok {
-        mr.jobsStatus[mr.Workers[w].splitId] = 0 // reverse to unassigned
+        mr.jobStatus[mr.Workers[w].jobId] = 0 // reverse to unassigned
         avail = false // this worker is bad
         //DPrintf("received failure from worker %s", w)
       } else {
@@ -223,10 +208,10 @@ func (mr *Master) RunMaster() *list.List {
 
     // worker available, assign a new job if remaining
     assigned := false
-    for j := range mr.jobsStatus {
-      if mr.jobsStatus[j] == 0 { // not assigned
-        mr.jobsStatus[j] = 1 // mark the job as running
-        mr.Workers[w].splitId = j
+    for j := range mr.jobStatus {
+      if mr.jobStatus[j] == 0 { // not assigned
+        mr.jobStatus[j] = 1 // mark the job as running
+        mr.Workers[w].jobId = j
         go mr.assignJob(w, j)
         assigned = true
         break
@@ -238,8 +223,8 @@ func (mr *Master) RunMaster() *list.List {
 
     // all jobs have been assigned, check if they finished
     allFinished := true
-    for j := range mr.jobsStatus {
-      if mr.jobsStatus[j] != 2 { // still running
+    for j := range mr.jobStatus {
+      if mr.jobStatus[j] != 2 { // still running
         allFinished = false
         break
       }

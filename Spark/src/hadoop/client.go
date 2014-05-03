@@ -8,19 +8,20 @@ import "strings"
 import "unicode"
 import "strconv"
 
-//TODO: handle file read error / file not exists
-func GetSplitScanner(fileURI string, splitInd int) (* bufio.Scanner) {
+func GetSplitScanner(fileURI string, splitInd int) (* bufio.Scanner, error) {
 	cmd := exec.Command("java", "HDFSSplitReaderStable", fileURI, strconv.Itoa(splitInd))
 	stdout, err := cmd.StdoutPipe()
   
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+    return nil, err
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		log.Println(err)
+    return nil, err
 	}
     scanner := bufio.NewScanner(stdout)
-    return scanner
+    return scanner, nil
 }
 
 

@@ -121,6 +121,8 @@ func (mr *Master) StartRegistrationServer() {
     }
     DPrintf("RegistrationServer: done\n")
   }()
+
+  DPrintf("RegistrationServer: ready")
 }
 
 func (mr *Master) Run() {

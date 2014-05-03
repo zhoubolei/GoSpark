@@ -27,6 +27,7 @@ type Worker struct {
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   // TODO other operations
+  DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
   if args.Operation == "LineCount" {
     cnt := 0
     scanner := hadoop.GetSplitScanner(args.File, args.SplitID) // get the scanner of current split

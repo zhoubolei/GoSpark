@@ -1,7 +1,7 @@
 package spark
 
+/*
 import "fmt"
-
 type TextFileRDD struct {
     BaseRDD
     path      string
@@ -34,3 +34,4 @@ func newTextFileRDD(ctx *Context, path string) RDD {
     textRdd.init(ctx, path, nsplit)
     return textRdd
 }
+*/

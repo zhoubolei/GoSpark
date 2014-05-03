@@ -5,6 +5,18 @@ import (
   "net/rpc"
 )
 
+import "crypto/rand"
+import "strconv"
+import "math/big"
+
+func nrand() string {
+  max := big.NewInt(int64(1) << 62)
+  bigx, _ := rand.Int(rand.Reader, max)
+  x := bigx.Int64()
+  return strconv.FormatInt(x, 10)
+}
+
+
 const (
   LineCount = "LineCount"
   ReadHDFSSplit = "ReadHDFSSplit"

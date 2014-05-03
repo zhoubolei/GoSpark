@@ -6,6 +6,10 @@ import (
   "log"
   "os"
   "bufio"
+  "hadoop"
+  "strings"
+  "strconv"
+  "time"
 )
 
 func TestBasicMaster(t *testing.T) {
@@ -23,8 +27,27 @@ func TestBasicMaster(t *testing.T) {
   master_port := s.Text()
   fmt.Printf("master ip %s port %s\n", master_ip, master_port)
 
-  mr := MakeMaster("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv", "ReadHDFSSplit", master_ip, master_port)
-  <- mr.DoneChannel
+  mr := MakeMaster(master_ip, master_port)
+  file := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv"
+  nsplits := hadoop.GetSplitInfo(file).Len()
+  i := 0
+  for i < nsplits {
+    workers := mr.WorkersAvailable()
+    for w := range workers {
+      args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:strings.Join([]string{file, strconv.Itoa(i)}, "-")}
+      var reply DoJobReply
+      ok := mr.AssignJob(w, &args, &reply)
+      if ok {
+        i++
+        if i >= nsplits {
+          break
+        }
+      } else {
+        time.Sleep(10 * time.Millisecond)
+      }
+    }
+  }
+  mr.Shutdown()
   // TODO check
   //check(t, mr.file)
   //checkWorker(t, mr.stats)

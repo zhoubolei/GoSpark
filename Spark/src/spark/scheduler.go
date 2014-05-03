@@ -44,8 +44,8 @@ func NewDistScheduler() Scheduler {
     scheduler := &DistScheduler{}
     // TODO: get address and port name from somewhere
     address := "vision24";
-    port := "10000"; 
-    scheduler.master = MakeMaster("", "", address, port)   
+    port := ":10000"; 
+    scheduler.master = MakeMaster(address, port)   
     
     return scheduler
 }

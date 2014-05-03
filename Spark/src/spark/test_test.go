@@ -3,6 +3,7 @@ import "testing"
 import "fmt"
 import "strings"
 import "strconv"
+import "time"
 
 func TestFileRead(t *testing.T) {
   fmt.Printf("Test: Line Count...\n")
@@ -18,4 +19,17 @@ func TestFileRead(t *testing.T) {
   //checkWorker(t, mr.stats)
   //cleanup(mr)
   //fmt.Printf("  ... File Read Passed\n")
+}
+
+func TestPeterkty(t *testing.T){
+	c := make(chan int, 1)
+	go func(c chan int){
+	   for s:= range c {
+	      fmt.Printf("%v 1\n", s)
+	      time.Sleep(100 * time.Millisecond)
+	   }
+	} (c)
+	c <- 1
+	c <- 1
+	close(c)
 }

@@ -18,17 +18,13 @@ type Context struct {
 
 type UserFunc struct {}
 
-type UserData struct {
-    Data interface{}
-}
-
 type KeyValue struct {
-    Key   UserData
-    Value UserData
+    Key   interface{}
+    Value interface{}
 }
 
 func (kv *KeyValue) String() string {
-  return fmt.Sprintf("%v:%v", kv.Key.Data, kv.Value.Data)
+  return fmt.Sprintf("%v:%v", kv.Key, kv.Value)
 }
 
 func NewContext(jobName string) *Context{

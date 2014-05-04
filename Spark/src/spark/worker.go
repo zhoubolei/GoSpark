@@ -23,26 +23,30 @@ type Worker struct {
   port string // e.g. ":1234"
   
   mu sync.RWMutex
-  mem map[string]([]UserData)   // filename -> line id -> filedata , this filename is an identifier of any computation result 
+  mem map[string]([]interface{})   // filename -> line id -> filedata , this filename is an identifier of any computation result 
   
   nCore int // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
   jobThread map[int]int
 }
 
-func (wk *Worker) reduce_list(p *list.Element, data UserData, fn reflect.Value) UserData {
+func (wk *Worker) reduce_list(p *list.Element, data interface{}, fn reflect.Value) interface{} {
   if p.Next() == nil {
-    return p.Value.(UserData)
+    return p.Value
   } else {
     // apply reducer function recursively
-    head := p.Value.(UserData)
+    head := p.Value
     tail := wk.reduce_list(p.Next(), data, fn)
     // call function by name
-    return fn.Call([]reflect.Value{reflect.ValueOf(head), reflect.ValueOf(tail), reflect.ValueOf(data)})[0].Interface().(UserData)
-    // TODO check function type
+    // convert to KeyValue before calling UserFunc
+    a1 := reflect.ValueOf(KeyValue{Value:head})
+    a2 := reflect.ValueOf(KeyValue{Value:tail})
+    a3 := reflect.ValueOf(KeyValue{Value:data})
+    r := fn.Call([]reflect.Value{a1, a2, a3}) // TODO check function type
+    return r[0].Interface()
   }
 }
 
-func (wk *Worker) read_split(hostname string, splitID string) ([]UserData, bool) {
+func (wk *Worker) read_split(hostname string, splitID string) ([]interface{}, bool) {
   my_name := strings.Join([]string{wk.name, wk.port}, "")
   if hostname == "" || hostname == my_name { // read from local mem
     wk.mu.RLock()
@@ -59,14 +63,14 @@ func (wk *Worker) read_split(hostname string, splitID string) ([]UserData, bool)
     }
     // store to local mem
     wk.mu.Lock()
-    wk.mem[splitID] = reply.Result.([]UserData)
+    wk.mem[splitID] = reply.Result.([]interface{})
     wk.mu.Unlock()
-    return reply.Result.([]UserData), true
+    return reply.Result.([]interface{}), true
   }
 }
 
 // return (split content, exists or not, the split id used)
-func (wk *Worker) read_one_input(id string, ids []Split) ([]UserData, bool, string) {
+func (wk *Worker) read_one_input(id string, ids []Split) ([]interface{}, bool, string) {
   if id == "" {
     if ids == nil || len(ids) < 1 {
       DPrintf("no split to read")
@@ -81,7 +85,7 @@ func (wk *Worker) read_one_input(id string, ids []Split) ([]UserData, bool, stri
 }
 
 // return (merged split content, all exist or not, the splits missing)
-func (wk *Worker) read_mult_inputs(ids []Split) ([]UserData, bool, []string) {
+func (wk *Worker) read_mult_inputs(ids []Split) ([]interface{}, bool, []string) {
   everything := list.New()
   missing := list.New()
   success := true
@@ -113,9 +117,9 @@ func (wk *Worker) read_mult_inputs(ids []Split) ([]UserData, bool, []string) {
     // conver to array
     n := everything.Len()
     p := everything.Front()
-    arr := make([]UserData, n)
+    arr := make([]interface{}, n)
     for i := 0; i < n; i++ {
-      arr[i] = p.Value.(UserData)
+      arr[i] = p.Value
       p = p.Next()
     }
     return arr, true, nil
@@ -146,9 +150,9 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // convert to array
     n := lines.Len()
     p := lines.Front()
-    arr := make([]UserData, n)
+    arr := make([]interface{}, n)
     for i := 0; i < n; i++ {
-      arr[i].Data = p.Value
+      arr[i] = p.Value
       p = p.Next()
     }
     // store to memory
@@ -172,7 +176,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       return nil
     }
     DPrintf("GetSplit read %v %v", args.InputID, arr)
-    res.Result = arr // split content
+    res.Result = arr // split content XXX no
+    //res.Result = []UserData{UserData{Data:"data"}} // no
+    //res.Data = []UserData{UserData{Data:"data"}} // yes
+    //res.Data = []UserData{UserData{Data:KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}}}} // no
+    //res.Result = []KeyValue{KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}}} // no
+    //res.Result = KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}} // no
     res.OK = true
 
   case Count: // TODO remove?
@@ -195,7 +204,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       return nil
     }
     // perform mapper function on each line
-    out := make([]UserData, len(arr))
+    out := make([]interface{}, len(arr))
     for i, line := range arr {
       // look up function by name
       fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
@@ -205,8 +214,11 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         return nil
       }
       // call function by name
-      out[i] = fn.Call([]reflect.Value{reflect.ValueOf(line), reflect.ValueOf(args.Data)})[0].Interface().(UserData)
-      // TODO check function type
+      // convert to KeyValue before calling UserFunc
+      a1 := reflect.ValueOf(KeyValue{Value:line})
+      a2 := reflect.ValueOf(KeyValue{Value:args.Data})
+      r := fn.Call([]reflect.Value{a1, a2}) // TODO check function type
+      out[i] = r[0].Interface()
     }
     // store to memory
     wk.mu.Lock()
@@ -217,7 +229,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.OK = true
 
   case ReduceByKeyJob:
-    kv := make(map[UserData]*list.List) // key -> list of values
+    kv := make(map[interface{}]*list.List) // key -> list of values
     lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
     // some splits missing
     if !complete {
@@ -230,8 +242,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // all splits present
     // sort by key
     for _, line := range lines {
-      k := line.Data.(KeyValue).Key
-      v := line.Data.(KeyValue).Value
+      k := line.(KeyValue).Key
+      v := line.(KeyValue).Value
       _, allocated := kv[k]
       if !allocated {
         kv[k] = list.New()
@@ -245,7 +257,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       }
     }
     DPrintf("Shuffled %v", kv)
-    out := make([]UserData, len(kv)) // each line for one key
+    out := make([]interface{}, len(kv)) // each line for one key
     i := 0
     for k, vl := range kv {
       // look up function by name
@@ -256,7 +268,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         return nil
       }
       // perform reducer function on the list of values
-      out[i] = UserData{Data:KeyValue{Key:k, Value:wk.reduce_list(vl.Front(), args.Data, fn)}}
+      out[i] = KeyValue{Key:k, Value:wk.reduce_list(vl.Front(), args.Data, fn)}
       i++
     }
     // store to memory
@@ -321,7 +333,7 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
     log.Fatal("RunWorker: worker ", me, port, " error: ", e)
   }
   wk.l = l
-  wk.mem = make(map[string]([]UserData))
+  wk.mem = make(map[string]([]interface{}))
   Register(MasterAddress, MasterPort, me, port)
   // TODO if idle for some time, register again
 

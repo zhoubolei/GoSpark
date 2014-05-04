@@ -78,7 +78,7 @@ type DoJobArgs struct {
   OutputID string
   OutputIDs []Split
   Function string
-  Data UserData // in case other inputs are needed
+  Data interface{} // in case other inputs are needed
 }
 
 type DoJobReply struct {

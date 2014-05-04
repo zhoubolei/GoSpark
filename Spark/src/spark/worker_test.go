@@ -12,13 +12,12 @@ import (
   "strconv"
 )
 
-func (u *UserFunc) LineCount(line UserData, data UserData) UserData {
-  return UserData{Data:KeyValue{Key:UserData{Data:"x"}, Value:UserData{Data:1}}}
+func (u *UserFunc) LineCount(line KeyValue, data KeyValue) interface{} {
+  return KeyValue{Key:"x", Value:1}
 }
 
-func (u *UserFunc) SumInt(a UserData, b UserData, data UserData) UserData {
-  sum := a.Data.(int) + b.Data.(int)
-  return UserData{Data:sum}
+func (u *UserFunc) SumInt(a KeyValue, b KeyValue, data KeyValue) interface{} {
+  return a.Value.(int) + b.Value.(int)
 }
 
 func TestBasicWorker(t *testing.T) {

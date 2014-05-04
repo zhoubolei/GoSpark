@@ -131,3 +131,37 @@ func TestMasterNotFound(t *testing.T) {
   //cleanup(mr)
   //fmt.Printf("  ... File Read Passed\n")
 }
+
+func TestMasterGetSplit(t *testing.T) {
+  fmt.Printf("Test: Master Get Split...\n")
+  mr := make_master()
+  workers := mr.WorkersAvailable()
+  for len(workers) < 1 {
+    time.Sleep(1 * time.Second)
+    workers = mr.WorkersAvailable()
+  }
+  var w string
+  for wk := range workers {
+    w = wk
+    break
+  }
+
+  file := "hdfs://vision24.csail.mit.edu:54310/user/kmean_data.txt"
+
+  // read from HDFS
+  read_out := "split0"
+  read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:0, OutputID:read_out}
+  var read_reply DoJobReply
+  mr.AssignJob(w, &read_args, &read_reply)
+
+  get_args := DoJobArgs{Operation:GetSplit, InputID:read_out}
+  var get_reply DoJobReply
+  mr.AssignJob(w, &get_args, &get_reply)
+
+  mr.Shutdown()
+  // TODO check
+  //check(t, mr.file)
+  //checkWorker(t, mr.stats)
+  //cleanup(mr)
+  //fmt.Printf("  ... File Read Passed\n")
+}

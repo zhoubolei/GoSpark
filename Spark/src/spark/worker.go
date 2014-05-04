@@ -29,17 +29,6 @@ type Worker struct {
   jobThread map[int]int
 }
 
-type UserData struct {
-  Data interface{}
-}
-
-type UserFunc struct {}
-
-type KeyValue struct {
-  Key UserData
-  Value UserData
-}
-
 func (wk *Worker) reduce_list(p *list.Element, data UserData, fn reflect.Value) UserData {
   if p.Next() == nil {
     return p.Value.(UserData)
@@ -50,6 +39,86 @@ func (wk *Worker) reduce_list(p *list.Element, data UserData, fn reflect.Value) 
     // call function by name
     return fn.Call([]reflect.Value{reflect.ValueOf(head), reflect.ValueOf(tail), reflect.ValueOf(data)})[0].Interface().(UserData)
     // TODO check function type
+  }
+}
+
+func (wk *Worker) read_split(hostname string, splitID string) ([]UserData, bool) {
+  my_name := strings.Join([]string{wk.name, wk.port}, "")
+  if hostname == "" || hostname == my_name { // read from local mem
+    wk.mu.RLock()
+    defer wk.mu.RUnlock()
+    arr, exist := wk.mem[splitID]
+    return arr, exist
+  } else { // ask another worker
+    args := DoJobArgs{Operation:GetSplit, InputID:splitID}
+    var reply DoJobReply
+    ok := call(hostname, "Worker.DoJob", args, &reply)
+    if ok == false || reply.OK == false {
+      DPrintf("fetch failed: worker %s, split %s", hostname, splitID)
+      return nil, false
+    }
+    // store to local mem
+    wk.mu.Lock()
+    wk.mem[splitID] = reply.Result.([]UserData)
+    wk.mu.Unlock()
+    return reply.Result.([]UserData), true
+  }
+}
+
+// return (split content, exists or not, the split id used)
+func (wk *Worker) read_one_input(id string, ids []Split) ([]UserData, bool, string) {
+  if id == "" {
+    if ids == nil || len(ids) < 1 {
+      DPrintf("no split to read")
+      return nil, false, ""
+    }
+    s, exist := wk.read_split(ids[0].Hostname, ids[0].SplitID)
+    return s, exist, ids[0].SplitID
+  } else {
+    s, exist := wk.read_split("", id)
+    return s, exist, id
+  }
+}
+
+// return (merged split content, all exist or not, the splits missing)
+func (wk *Worker) read_mult_inputs(ids []Split) ([]UserData, bool, []string) {
+  everything := list.New()
+  missing := list.New()
+  success := true
+  // try reading all the splits
+  for _, id := range ids {
+    arr, exist := wk.read_split(id.Hostname, id.SplitID)
+    if !exist {
+      success = false
+      missing.PushBack(id.SplitID)
+    }
+    if !success {
+      continue
+    }
+    for _, line := range arr {
+      everything.PushBack(line)
+    }
+  }
+  if !success { // some splits missing, return their ids
+    // conver to array
+    n := missing.Len()
+    p := missing.Front()
+    arr := make([]string, n)
+    for i := 0; i < n; i++ {
+      arr[i] = p.Value.(string)
+      p = p.Next()
+    }
+    return nil, false, arr
+  } else { // all splits exist, return merged contents
+    // conver to array
+    n := everything.Len()
+    p := everything.Front()
+    arr := make([]UserData, n)
+    for i := 0; i < n; i++ {
+      arr[i] = p.Value.(UserData)
+      p = p.Next()
+    }
+    return arr, true, nil
   }
 }
 
@@ -84,54 +153,45 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     }
     // store to memory
     wk.mu.Lock()
-    wk.mem[args.OutputID[0]] = arr
+    wk.mem[args.OutputID] = arr
     wk.mu.Unlock()
     // reply
     res.Result = len(arr) // line count
     res.OK = true
 
   case HasSplit:
-    wk.mu.RLock()
-    _, exists := wk.mem[args.InputID[0]]
-    wk.mu.RUnlock()
-    res.Result = exists
+    _, res.Result, _ = wk.read_one_input(args.InputID, args.InputIDs)
     res.OK = true
 
   case GetSplit:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID[0]]
-    wk.mu.RUnlock()
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID[0]}
+      res.NeedSplits = []string{id}
       return nil
     }
-    DPrintf("GetSplit read %v %v", args.InputID[0], arr)
+    DPrintf("GetSplit read %v %v", args.InputID, arr)
     res.Result = arr // split content
     res.OK = true
 
-  case Count:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID[0]]
-    wk.mu.RUnlock()
+  case Count: // TODO remove?
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID[0]}
+      res.NeedSplits = []string{id}
       return nil
     }
     res.Result = len(arr) // line count
     res.OK = true
 
   case MapJob:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID[0]]
-    wk.mu.RUnlock()
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID[0]}
+      res.NeedSplits = []string{id}
       return nil
     }
     // perform mapper function on each line
@@ -150,58 +210,37 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     }
     // store to memory
     wk.mu.Lock()
-    wk.mem[args.OutputID[0]] = out
+    wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
     DPrintf("Map out %v", out)
     res.OK = true
 
-  case ReduceByKey:
+  case ReduceByKeyJob:
     kv := make(map[UserData]*list.List) // key -> list of values
-    need := list.New()
-    for _, input := range args.InputID {
-      wk.mu.RLock()
-      kvarr, exists := wk.mem[input]
-      wk.mu.RUnlock()
-      // record all the splits needed
-      if !exists {
-        DPrintf("not found %s", input)
-        need.PushBack(input)
-      }
-      if need.Len() > 0 {
-        continue
-      }
-      DPrintf("Input %v %v", input, kvarr)
-      // so far all splits are present
-      // sort by key
-      for _, line := range kvarr {
-        k := line.Data.(KeyValue).Key
-        v := line.Data.(KeyValue).Value
-        _, allocated := kv[k]
-        if !allocated {
-          kv[k] = list.New()
-        }
-        kv[k].PushBack(v)
-      }
-    }
+    lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
     // some splits missing
-    if need.Len() > 0 {
-      // convert to array
-      n := need.Len()
-      p := need.Front()
-      splits := make([]string, n)
-      for i := 0; i < n; i++ {
-        splits[i] = p.Value.(string)
-        p = p.Next()
-      }
+    if !complete {
+      DPrintf("not found %v", missing)
       // reply
       res.OK = false
-      res.NeedSplits = splits
+      res.NeedSplits = missing
       return nil
     }
-    // all splits present, perform reducer function
+    // all splits present
+    // sort by key
+    for _, line := range lines {
+      k := line.Data.(KeyValue).Key
+      v := line.Data.(KeyValue).Value
+      _, allocated := kv[k]
+      if !allocated {
+        kv[k] = list.New()
+      }
+      kv[k].PushBack(v)
+    }
+    // perform reducer function
     for k, vl := range kv {
-      if vl.Len() == 0 {
+      if vl == nil || vl.Len() == 0 {
         delete(kv, k)
       }
     }
@@ -222,10 +261,10 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     }
     // store to memory
     wk.mu.Lock()
-    wk.mem[args.OutputID[0]] = out
+    wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    DPrintf("Reduce out %v %v", args.OutputID[0], out)
+    DPrintf("Reduce out %v %v", args.OutputID, out)
     res.OK = true
 
   default:

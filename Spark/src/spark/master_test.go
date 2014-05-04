@@ -37,7 +37,7 @@ func TestBasicMaster(t *testing.T) {
   for i < nsplits {
     workers := mr.WorkersAvailable()
     for w := range workers {
-      args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:[]string{strings.Join([]string{file, strconv.Itoa(i)}, "-")}}
+      args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:strings.Join([]string{file, strconv.Itoa(i)}, "-")}
       var reply DoJobReply
       ok := mr.AssignJob(w, &args, &reply)
       if ok {
@@ -73,23 +73,23 @@ func TestMasterMR(t *testing.T) {
     w = wk
     break
   }
-  reduce_in := make([]string, nsplits)
+  reduce_in := make([]Split, nsplits)
   for i := 0; i < nsplits; i++ {
     // read from HDFS
     read_out := strings.Join([]string{file, "read", strconv.Itoa(i)}, "-")
-    read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:[]string{read_out}}
+    read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:read_out}
     var read_reply DoJobReply
     mr.AssignJob(w, &read_args, &read_reply)
     // perform map
     map_out := strings.Join([]string{file, "map", strconv.Itoa(i)}, "-")
-    map_args := DoJobArgs{Operation:MapJob, InputID:[]string{read_out}, OutputID:[]string{map_out}, Function:"LineCount"}
+    map_args := DoJobArgs{Operation:MapJob, InputID:read_out, OutputID:map_out, Function:"LineCount"}
     var map_reply DoJobReply
     mr.AssignJob(w, &map_args, &map_reply)
-    reduce_in[i] = map_out
+    reduce_in[i] = Split{SplitID:map_out, Hostname:""}
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
-  reduce_args := DoJobArgs{Operation:ReduceByKey, InputID:reduce_in, OutputID:[]string{reduce_out}, Function:"SumInt"}
+  reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
 /*
@@ -119,7 +119,8 @@ func TestMasterNotFound(t *testing.T) {
     w = wk
     break
   }
-  args := DoJobArgs{Operation:ReduceByKey, InputID:[]string{"asdf", "qwer"}, OutputID:[]string{"yui"}, Function:"SumInt"}
+  inputs := []Split{Split{SplitID:"asdf", Hostname:""}, Split{SplitID:"qwer", Hostname:""}}
+  args := DoJobArgs{Operation:ReduceByKey, InputIDs:inputs, OutputID:"yui", Function:"SumInt"}
   var reply DoJobReply
   mr.AssignJob(w, &args, &reply)
 

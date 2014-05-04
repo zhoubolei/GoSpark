@@ -17,13 +17,15 @@ func nrand() string {
 }
 
 
+// peterkty: should all append "job"
 const (
   ReadHDFSSplit = "ReadHDFSSplit"
-  HasSplit = "HasSplit"
-  GetSplit = "GetSplit"
-  Count = "Count"
-  MapJob = "Map"
-  ReduceByKey = "ReduceByKey"
+  HasSplit      = "HasSplit"
+  GetSplit      = "GetSplit"
+  Count         = "Count"
+  MapJob        = "Map"
+  HashPartJob   = "HashPartJob"
+  ReduceByKeyJob = "ReduceByKey"
 )
 
 type Yielder chan interface{}
@@ -71,8 +73,10 @@ type DoJobArgs struct {
   Operation JobType
   HDFSFile string
   HDFSSplitID int
-  InputID []string
-  OutputID []string
+  InputID string
+  InputIDs []Split
+  OutputID string
+  OutputIDs []Split
   Function string
   Data UserData // in case other inputs are needed
 }

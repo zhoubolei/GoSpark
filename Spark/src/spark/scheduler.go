@@ -10,10 +10,12 @@ import "strings"
 
 type Scheduler struct {
     master *Master
-}
+} 
 
-func Call(hostname string, args *DoJobArgs, reply *DoJobReply) error{
-  return nil
+func Call(hostname string, fnName string, args *DoJobArgs, reply *DoJobReply) bool {
+  //return call(hostname, fnName, args, reply)
+  DPrintf("Call(%v, %v, %v)\n", hostname, fnName, args)
+  return true
 }
 
 type Node struct{
@@ -123,8 +125,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sid   := rand.Int() % len(serverList)  // randomly pick one
 	  addressHDFS := serverList[sid]
 	  addressWorkerInMaster := d.findServerAddress(addressHDFS)
+	  rdd.splits[SpInd].hostname = addressWorkerInMaster
 	  
-	  ok := call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
+	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
   //case MapWithData:
   
@@ -133,7 +136,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.splitID, OutputID: sOut.splitID};
-	  ok := call(sIn.hostname, "Worker.DoJob", &args, &reply)
+	  ok := Call(sIn.hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  
 	  
@@ -168,7 +171,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].splitID, OutputIDs: OutputIDs};
 			  go func(args DoJobArgs){
 			    reply := DoJobReply{}
-			    ok := call(rdd.prevRDD1.splits[i].hostname, "Worker.DoJob", &args, &reply)
+			    ok := Call(rdd.prevRDD1.splits[i].hostname, "Worker.DoJob", &args, &reply)
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
 			    y <- 1
 			  } (args)
@@ -188,7 +191,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *ss[i][SpInd] }
     // sOut.hostname = get one from some free worker 
     args := DoJobArgs{Operation: ReduceByKey, InputIDs: InputIDs, OutputID: sOut.splitID};
-    ok := call(sOut.hostname, "Worker.DoJob", &args, &reply)
+    ok := Call(sOut.hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
 	  
 	    

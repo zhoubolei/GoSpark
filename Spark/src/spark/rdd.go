@@ -14,7 +14,9 @@ type RDD struct {
   splitType       string
   operationType   string
   fnName          string    // function name for map, reduce ...
+  fnData          interface{}    // function name for map, reduce ...
   filePath        string
+  shouldCache     bool
     
   prevRDD1        *RDD
   prevRDD2        *RDD
@@ -46,6 +48,12 @@ func makeRDD(ctx *Context, length int, dependType string, splitType string, oper
 
 func (r *RDD) Map(fnName string) *RDD {
   newRdd := makeRDD(r.ctx, r.length, Narrow, r.splitType, Map, "", fnName, r, nil)
+  return newRdd
+}
+
+func (r *RDD) MapWithData(fnName string, fnData interface{}) *RDD {
+  newRdd := makeRDD(r.ctx, r.length, Narrow, r.splitType, Map, "", fnName, r, nil)
+  newRdd.fnData = fnData
   return newRdd
 }
 
@@ -97,6 +105,11 @@ func (r *RDD) Count() int64 {
   return ret;
 }
 
+// Memory options
+func (r *RDD) Cache() *RDD {
+  r.shouldCache = true
+  return r;
+}
 
 // DependType
 const (
@@ -112,6 +125,7 @@ const (
   ReduceByKey = "ReduceByKey"
   Filter      = "Filter"
   Collect     = "Collect"
+  HDFSFile    = "HDFSFile"
 )  
 
 // SplitTypes

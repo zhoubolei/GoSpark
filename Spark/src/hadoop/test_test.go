@@ -21,7 +21,7 @@ func TestBasicRead(t *testing.T) {
 	    fmt.Println();
 	}
     
-    scanner := GetSplitScanner(fileURI, 0); // get the scanner of split 0
+    scanner, _ := GetSplitScanner(fileURI, 0); // get the scanner of split 0
     
     for scanner.Scan() {
 		fmt.Println(scanner.Text()) // read one line of data in split

@@ -1,9 +1,12 @@
-package spark 
-
+package spark
+ 
 import "fmt"
 import "os"
 import "bufio"
 import "log"
+import "hadoop"
+import "math/rand"
+import "strings"
 
 type Scheduler struct {
     master *Master
@@ -94,9 +97,37 @@ func topSort(dag *Dag) []*RDD{
   return list
 }
 
+// turn addressHDFS like vision24.csail.mit.edu to vision24:portname
+func (d *Scheduler) findServerAddress(addressHDFS string) string {
+  hostname := strings.FieldsFunc(addressHDFS, func(c rune) bool { return c == '.' })[0]
+  
+  m := d.master.WorkersAvailable()
+  for hostnameWithPort,_ := range m {
+    if(strings.HasPrefix(hostnameWithPort, hostname)) {
+      return hostnameWithPort
+    }
+  }
+  return ""
+}
+
 func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
   // if ran than check if the result exists, if exists don't run again;
   switch rdd.operationType {
+  case HDFSFile:
+	  sOut := rdd.splits[SpInd]
+	  reply := DoJobReply{}
+	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.splitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
+	  
+	  sinfo := hadoop.GetSplitInfoSlice(HDFSFile)
+	  serverList := sinfo[SpInd]
+	  sid   := rand.Int() % len(serverList)  // randomly pick one
+	  addressHDFS := serverList[sid]
+	  addressWorkerInMaster := d.findServerAddress(addressHDFS)
+	  
+	  ok := call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
+	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
+  //case MapWithData:
+  
   case Map:
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
@@ -107,7 +138,6 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  
 	  
   case ReduceByKey:
-  
     // shuffleSplits should be moved to rdd from prev rdd 
 	  sOut := rdd.splits[SpInd]
 	  

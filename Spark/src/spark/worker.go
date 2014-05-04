@@ -23,15 +23,112 @@ type Worker struct {
   port string // e.g. ":1234"
   
   mu sync.RWMutex
-  mem map[string]([]interface{})   // filename -> line id -> filedata , this filename is an identifier of any computation result 
+  mem map[string]([]UserData)   // filename -> line id -> filedata , this filename is an identifier of any computation result 
   
   nCore int // number of cores (thread) can be run on this worker -> initialize this from command arg / config file
   jobThread map[int]int
 }
 
+func (wk *Worker) reduce_list(p *list.Element, data UserData, fn reflect.Value) UserData {
+  if p.Next() == nil {
+    return p.Value.(UserData)
+  } else {
+    // apply reducer function recursively
+    head := p.Value.(UserData)
+    tail := wk.reduce_list(p.Next(), data, fn)
+    // call function by name
+    return fn.Call([]reflect.Value{reflect.ValueOf(head), reflect.ValueOf(tail), reflect.ValueOf(data)})[0].Interface().(UserData)
+    // TODO check function type
+  }
+}
+
+func (wk *Worker) read_split(hostname string, splitID string) ([]UserData, bool) {
+  my_name := strings.Join([]string{wk.name, wk.port}, "")
+  if hostname == "" || hostname == my_name { // read from local mem
+    wk.mu.RLock()
+    defer wk.mu.RUnlock()
+    arr, exist := wk.mem[splitID]
+    return arr, exist
+  } else { // ask another worker
+    args := DoJobArgs{Operation:GetSplit, InputID:splitID}
+    var reply DoJobReply
+    ok := call(hostname, "Worker.DoJob", args, &reply)
+    if ok == false || reply.OK == false {
+      DPrintf("fetch failed: worker %s, split %s", hostname, splitID)
+      return nil, false
+    }
+    // store to local mem
+    wk.mu.Lock()
+    wk.mem[splitID] = reply.Result.([]UserData)
+    wk.mu.Unlock()
+    return reply.Result.([]UserData), true
+  }
+}
+
+// return (split content, exists or not, the split id used)
+func (wk *Worker) read_one_input(id string, ids []Split) ([]UserData, bool, string) {
+  if id == "" {
+    if ids == nil || len(ids) < 1 {
+      DPrintf("no split to read")
+      return nil, false, ""
+    }
+    s, exist := wk.read_split(ids[0].Hostname, ids[0].SplitID)
+    return s, exist, ids[0].SplitID
+  } else {
+    s, exist := wk.read_split("", id)
+    return s, exist, id
+  }
+}
+
+// return (merged split content, all exist or not, the splits missing)
+func (wk *Worker) read_mult_inputs(ids []Split) ([]UserData, bool, []string) {
+  everything := list.New()
+  missing := list.New()
+  success := true
+  // try reading all the splits
+  for _, id := range ids {
+    arr, exist := wk.read_split(id.Hostname, id.SplitID)
+    if !exist {
+      success = false
+      missing.PushBack(id.SplitID)
+    }
+    if !success {
+      continue
+    }
+    for _, line := range arr {
+      everything.PushBack(line)
+    }
+  }
+  if !success { // some splits missing, return their ids
+    // conver to array
+    n := missing.Len()
+    p := missing.Front()
+    arr := make([]string, n)
+    for i := 0; i < n; i++ {
+      arr[i] = p.Value.(string)
+      p = p.Next()
+    }
+    return nil, false, arr
+  } else { // all splits exist, return merged contents
+    // conver to array
+    n := everything.Len()
+    p := everything.Front()
+    arr := make([]UserData, n)
+    for i := 0; i < n; i++ {
+      arr[i] = p.Value.(UserData)
+      p = p.Next()
+    }
+    return arr, true, nil
+  }
+}
+
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
+
+  res.Result = nil
+  res.OK = false
+  res.NeedSplits = nil
 
   switch args.Operation {
   case ReadHDFSSplit:
@@ -49,9 +146,9 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // convert to array
     n := lines.Len()
     p := lines.Front()
-    arr := make([]interface{}, n)
+    arr := make([]UserData, n)
     for i := 0; i < n; i++ {
-      arr[i] = p.Value.(string)
+      arr[i].Data = p.Value
       p = p.Next()
     }
     // store to memory
@@ -63,66 +160,111 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.OK = true
 
   case HasSplit:
-    wk.mu.RLock()
-    _, exists := wk.mem[args.InputID]
-    wk.mu.RUnlock()
-    res.Result = exists
+    _, res.Result, _ = wk.read_one_input(args.InputID, args.InputIDs)
     res.OK = true
 
   case GetSplit:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID]
-    wk.mu.RUnlock()
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID}
+      res.NeedSplits = []string{id}
       return nil
     }
+    DPrintf("GetSplit read %v %v", args.InputID, arr)
     res.Result = arr // split content
     res.OK = true
 
-  case Count:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID]
-    wk.mu.RUnlock()
+  case Count: // TODO remove?
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID}
+      res.NeedSplits = []string{id}
       return nil
     }
     res.Result = len(arr) // line count
     res.OK = true
 
   case MapJob:
-    wk.mu.RLock()
-    arr, exists := wk.mem[args.InputID]
-    wk.mu.RUnlock()
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
       res.OK = false
-      res.NeedSplits = []string{args.InputID}
+      res.NeedSplits = []string{id}
       return nil
     }
     // perform mapper function on each line
-    out := make([]interface{}, len(arr))
+    out := make([]UserData, len(arr))
     for i, line := range arr {
-      // call function by name
-      val := reflect.ValueOf(line)
-      fn := val.MethodByName(args.Function)
+      // look up function by name
+      fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
       if !fn.IsValid() {
         DPrintf("undefined")
         res.OK = false
         return nil
       }
-      out[i] = fn.Call([]reflect.Value{val})[0].Interface()
+      // call function by name
+      out[i] = fn.Call([]reflect.Value{reflect.ValueOf(line), reflect.ValueOf(args.Data)})[0].Interface().(UserData)
+      // TODO check function type
     }
     // store to memory
     wk.mu.Lock()
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
+    DPrintf("Map out %v", out)
+    res.OK = true
+
+  case ReduceByKeyJob:
+    kv := make(map[UserData]*list.List) // key -> list of values
+    lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
+    // some splits missing
+    if !complete {
+      DPrintf("not found %v", missing)
+      // reply
+      res.OK = false
+      res.NeedSplits = missing
+      return nil
+    }
+    // all splits present
+    // sort by key
+    for _, line := range lines {
+      k := line.Data.(KeyValue).Key
+      v := line.Data.(KeyValue).Value
+      _, allocated := kv[k]
+      if !allocated {
+        kv[k] = list.New()
+      }
+      kv[k].PushBack(v)
+    }
+    // perform reducer function
+    for k, vl := range kv {
+      if vl == nil || vl.Len() == 0 {
+        delete(kv, k)
+      }
+    }
+    DPrintf("Shuffled %v", kv)
+    out := make([]UserData, len(kv)) // each line for one key
+    i := 0
+    for k, vl := range kv {
+      // look up function by name
+      fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
+      if !fn.IsValid() {
+        DPrintf("undefined")
+        res.OK = false
+        return nil
+      }
+      // perform reducer function on the list of values
+      out[i] = UserData{Data:KeyValue{Key:k, Value:wk.reduce_list(vl.Front(), args.Data, fn)}}
+      i++
+    }
+    // store to memory
+    wk.mu.Lock()
+    wk.mem[args.OutputID] = out
+    wk.mu.Unlock()
+    // reply
+    DPrintf("Reduce out %v %v", args.OutputID, out)
     res.OK = true
 
   default:
@@ -130,6 +272,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.OK = false
 
   }
+
+  DPrintf("success reply %v", res)
 
   return nil
 }
@@ -177,7 +321,7 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
     log.Fatal("RunWorker: worker ", me, port, " error: ", e)
   }
   wk.l = l
-  wk.mem = make(map[string]([]interface{}))
+  wk.mem = make(map[string]([]UserData))
   Register(MasterAddress, MasterPort, me, port)
   // TODO if idle for some time, register again
 

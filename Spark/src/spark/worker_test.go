@@ -12,6 +12,15 @@ import (
   "strconv"
 )
 
+func (u *UserFunc) LineCount(line UserData, data UserData) UserData {
+  return UserData{Data:KeyValue{Key:UserData{Data:"x"}, Value:UserData{Data:1}}}
+}
+
+func (u *UserFunc) SumInt(a UserData, b UserData, data UserData) UserData {
+  sum := a.Data.(int) + b.Data.(int)
+  return UserData{Data:sum}
+}
+
 func TestBasicWorker(t *testing.T) {
   fmt.Printf("Test: Basic Worker...\n")
 

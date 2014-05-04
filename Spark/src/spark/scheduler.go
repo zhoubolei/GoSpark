@@ -118,14 +118,14 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
   case HDFSFile:
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.splitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
+	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
 	  
 	  sinfo := hadoop.GetSplitInfoSlice(HDFSFile)
 	  serverList := sinfo[SpInd]
 	  sid   := rand.Int() % len(serverList)  // randomly pick one
 	  addressHDFS := serverList[sid]
 	  addressWorkerInMaster := d.findServerAddress(addressHDFS)
-	  rdd.splits[SpInd].hostname = addressWorkerInMaster
+	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
 	  
 	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
@@ -135,8 +135,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.splitID, OutputID: sOut.splitID};
-	  ok := Call(sIn.hostname, "Worker.DoJob", &args, &reply)
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID};
+	  ok := call(sIn.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  
 	  
@@ -157,7 +157,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
         ss[i] = make([]*Split, nRed)
         for j:=0; j<nRed; j++ {
           ss[i][j] = makeSplit()
-          ss[i][j].hostname = rdd.prevRDD1.splits[i].hostname
+          ss[i][j].Hostname = rdd.prevRDD1.splits[i].Hostname
         }
       }
       
@@ -168,10 +168,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
       for i:=0; i<nSpl; i++ {
 			  OutputIDs := make([]Split, nRed)
 			  for j:=0; j<nRed; j++ { OutputIDs[j] = *ss[i][j] }
-			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].splitID, OutputIDs: OutputIDs};
+			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
 			  go func(args DoJobArgs){
 			    reply := DoJobReply{}
-			    ok := Call(rdd.prevRDD1.splits[i].hostname, "Worker.DoJob", &args, &reply)
+			    ok := call(rdd.prevRDD1.splits[i].Hostname, "Worker.DoJob", &args, &reply)
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
 			    y <- 1
 			  } (args)
@@ -190,8 +190,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     reply := DoJobReply{}
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *ss[i][SpInd] }
     // sOut.hostname = get one from some free worker 
-    args := DoJobArgs{Operation: ReduceByKey, InputIDs: InputIDs, OutputID: sOut.splitID};
-    ok := Call(sOut.hostname, "Worker.DoJob", &args, &reply)
+    args := DoJobArgs{Operation: ReduceByKey, InputIDs: InputIDs, OutputID: sOut.SplitID};
+    ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
 	  
 	    
@@ -253,9 +253,9 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	  for i:=0; i<nOutputSplit; i++ {
 	    s := rdd.splits[i]
 	    reply := DoJobReply{}
-	    args := DoJobArgs{Operation: "GetSplit", InputID: s.splitID};
+	    args := DoJobArgs{Operation: "GetSplit", InputID: s.SplitID};
 	         
-	    ok := Call(s.hostname, "Worker.DoJob", &args, &reply)
+	    ok := Call(s.Hostname, "Worker.DoJob", &args, &reply)
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n")
       }

@@ -1,12 +1,12 @@
 package spark
 
 type Split struct {
-  splitID  string
-  hostname string
+  SplitID  string
+  Hostname string
 }
 
 func makeSplit() *Split{
   s := Split{}
-  s.splitID = nrand()
+  s.SplitID = nrand()
   return &s
 }

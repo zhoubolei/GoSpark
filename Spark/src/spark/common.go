@@ -25,6 +25,7 @@ const (
   Count         = "Count"
   MapJob        = "Map"
   HashPartJob   = "HashPartJob"
+  ReduceByKeyJob = "ReduceByKey"
 )
 
 type Yielder chan interface{}
@@ -77,6 +78,7 @@ type DoJobArgs struct {
   OutputID string
   OutputIDs []Split
   Function string
+  Data UserData // in case other inputs are needed
 }
 
 type DoJobReply struct {

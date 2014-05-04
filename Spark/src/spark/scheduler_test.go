@@ -8,8 +8,6 @@ import (
   "strconv"
 )
 
-type UserFunc struct {}
-
 func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
   fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })

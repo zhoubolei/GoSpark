@@ -16,13 +16,19 @@ type Context struct {
     startTime  time.Time
 }
 
+type UserFunc struct {}
+
+type UserData struct {
+    Data interface{}
+}
+
 type KeyValue struct {
-    Key   interface{}
-    Value interface{}
+    Key   UserData
+    Value UserData
 }
 
 func (kv *KeyValue) String() string {
-  return fmt.Sprintf("%v:%v", kv.Key, kv.Value)
+  return fmt.Sprintf("%v:%v", kv.Key.Data, kv.Value.Data)
 }
 
 func NewContext(jobName string) *Context{

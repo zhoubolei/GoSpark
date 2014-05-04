@@ -6,6 +6,7 @@ import (
   "net/rpc"
   "log"
   "sync"
+  "encoding/gob"
 )
 
 const Debug=1
@@ -36,6 +37,8 @@ type Master struct {
 }
 
 func MakeMaster(ip string, port string) *Master {
+  gob.Register(UserData{})
+  gob.Register(KeyValue{})
   mr := Master{}
   mr.MasterAddress = ip
   mr.MasterPort = port

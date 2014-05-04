@@ -23,6 +23,7 @@ const (
   GetSplit = "GetSplit"
   Count = "Count"
   MapJob = "Map"
+  ReduceByKey = "ReduceByKey"
 )
 
 type Yielder chan interface{}
@@ -70,9 +71,10 @@ type DoJobArgs struct {
   Operation JobType
   HDFSFile string
   HDFSSplitID int
-  InputID string
-  OutputID string
+  InputID []string
+  OutputID []string
   Function string
+  Data UserData // in case other inputs are needed
 }
 
 type DoJobReply struct {

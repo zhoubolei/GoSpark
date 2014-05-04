@@ -6,7 +6,7 @@ import (
 
 // this base RDD to have more types of RDD map, join, ..., HDFS file
 type RDD struct {
-  id           string
+  id              string
   ctx             *Context
   length          int       // number of splits
   splits          []*Split
@@ -63,7 +63,7 @@ func (r *RDD) FlatMap(fnName string) *RDD {
 }
 
 func (r *RDD) ReduceByKey(fnName string) *RDD {
-  newRdd := makeRDD(r.ctx, r.length, Wide, HashPartition, Filter, "", fnName, r, nil)
+  newRdd := makeRDD(r.ctx, r.length, Wide, HashPartition, ReduceByKey, "", fnName, r, nil)
   return newRdd
 }
 

@@ -7,14 +7,17 @@ import "log"
 import "hadoop"
 import "math/rand"
 import "strings"
+import "time"
 
 type Scheduler struct {
     master *Master
 } 
 
+// fake call function
 func Call(hostname string, fnName string, args *DoJobArgs, reply *DoJobReply) bool {
   //return call(hostname, fnName, args, reply)
   DPrintf("Call(%v, %v, %v)\n", hostname, fnName, args)
+  reply.Result = []interface{} {Vector{1,1,1,1}, Vector{2,2,2,2}, Vector{3,3,3,3}}
   return true
 }
 
@@ -113,7 +116,10 @@ func (d *Scheduler) findServerAddress(addressHDFS string) string {
 }
 
 func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
-  // if ran than check if the result exists, if exists don't run again;
+  // if run before than check if the result exists, if exists don't run again;
+  log.Printf("Scheduler.runThisSplit %v start",  rdd.operationType )
+  defer log.Printf("Scheduler.runThisSplit %v end",  rdd.operationType )
+  
   switch rdd.operationType {
   case HDFSFile:
 	  sOut := rdd.splits[SpInd]
@@ -122,13 +128,20 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  
 	  sinfo := hadoop.GetSplitInfoSlice(HDFSFile)
 	  serverList := sinfo[SpInd]
-	  sid   := rand.Int() % len(serverList)  // randomly pick one
-	  addressHDFS := serverList[sid]
-	  addressWorkerInMaster := d.findServerAddress(addressHDFS)
+	  addressWorkerInMaster := ""
+	  for {
+	    sid   := rand.Int() % len(serverList)  // randomly pick one
+	    addressHDFS := serverList[sid]
+	    addressWorkerInMaster = d.findServerAddress(addressHDFS)
+	    if (addressWorkerInMaster != ""){
+	      break
+	    }
+	    time.Sleep(10*time.Millisecond)
+	  }
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
 	  
 	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
+	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok") }
   //case MapWithData:
   
   case Map:
@@ -136,7 +149,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID};
-	  ok := call(sIn.Hostname, "Worker.DoJob", &args, &reply)
+	  ok := Call(sIn.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  
 	  
@@ -171,7 +184,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
 			  go func(args DoJobArgs){
 			    reply := DoJobReply{}
-			    ok := call(rdd.prevRDD1.splits[i].Hostname, "Worker.DoJob", &args, &reply)
+			    ok := Call(rdd.prevRDD1.splits[i].Hostname, "Worker.DoJob", &args, &reply)
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
 			    y <- 1
 			  } (args)
@@ -194,7 +207,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
 	  
-	    
+	 
   }
   return nil
 }
@@ -229,8 +242,13 @@ func (d *Scheduler) computeRDDByStage(rdd* RDD) {
   rdd.isTarget = true;
   // 1. build DAG graph for stages
   dag := makeDagFromRdd(rdd)
+  DPrintf("Dag: %v", dag)
   // 2. topological sort DAG
   sortedList := topSort(dag)
+  DPrintf("SortedList: ", sortedList)
+  for i:=0; i<len(sortedList); i++ {
+    DPrintf("op: %v\n", (*(sortedList[i])).operationType)
+  }
   // 3. Run each stage according to sorted order
   for i:=0; i<len(sortedList); i++ {
     d.runRDDInStage(sortedList[i])
@@ -259,7 +277,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n")
       }
-      ret = append(ret, reply.Result.([] interface{}))
+      ret = append(ret, reply.Result)
 	  }
     return ret
   case "Count":

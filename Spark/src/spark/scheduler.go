@@ -94,7 +94,7 @@ func topSort(dag *Dag) []*RDD{
       }
     }
   }
-  list[length+1] = dag.root.rdd
+  list[length] = dag.root.rdd
   
   return list
 }
@@ -226,6 +226,7 @@ func (d *Scheduler) runRDDInStage(rdd* RDD) {
 
 // Recursively Compute RDD by stages and not retrieve data to master 
 func (d *Scheduler) computeRDDByStage(rdd* RDD) {
+  rdd.isTarget = true;
   // 1. build DAG graph for stages
   dag := makeDagFromRdd(rdd)
   // 2. topological sort DAG
@@ -234,6 +235,7 @@ func (d *Scheduler) computeRDDByStage(rdd* RDD) {
   for i:=0; i<len(sortedList); i++ {
     d.runRDDInStage(sortedList[i])
   }
+  rdd.isTarget = false;
 }
 
 // This function is called when user triggers an action
@@ -247,18 +249,19 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
   switch (operationType) {
   case "Collect":
     // simply collect without applying reduce function
-  
+    ret := []interface{} {}
 	  for i:=0; i<nOutputSplit; i++ {
 	    s := rdd.splits[i]
 	    reply := DoJobReply{}
 	    args := DoJobArgs{Operation: "GetSplit", InputID: s.splitID};
 	         
-	    ok := call(s.hostname, "Worker.DoJob", &args, &reply)
+	    ok := Call(s.hostname, "Worker.DoJob", &args, &reply)
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n")
       }
+      ret = append(ret, reply.Result.([] interface{}))
 	  }
-    
+    return ret
   case "Count":
   // TODO:
   

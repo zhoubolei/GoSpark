@@ -10,6 +10,7 @@ import (
   "log"
   "sync"
   "reflect"
+  "encoding/gob"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -63,9 +64,9 @@ func (wk *Worker) read_split(hostname string, splitID string) ([]interface{}, bo
     }
     // store to local mem
     wk.mu.Lock()
-    wk.mem[splitID] = reply.Result.([]interface{})
+    wk.mem[splitID] = reply.Lines
     wk.mu.Unlock()
-    return reply.Result.([]interface{}), true
+    return reply.Lines, true
   }
 }
 
@@ -176,12 +177,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       return nil
     }
     DPrintf("GetSplit read %v %v", args.InputID, arr)
-    res.Result = arr // split content XXX no
-    //res.Result = []UserData{UserData{Data:"data"}} // no
-    //res.Data = []UserData{UserData{Data:"data"}} // yes
-    //res.Data = []UserData{UserData{Data:KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}}}} // no
-    //res.Result = []KeyValue{KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}}} // no
-    //res.Result = KeyValue{Key:UserData{Data:"key"}, Value:UserData{Data:"value"}} // no
+    res.Lines = arr // split content
     res.OK = true
 
   case Count: // TODO remove?
@@ -319,6 +315,7 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
 // Set up a connection with the master, register with the master,
 // and wait for jobs from the master
 func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int) {
+  gob.Register(KeyValue{})
   DPrintf("RunWorker %s%s\n", me, port)
   wk := new(Worker)
 

@@ -83,6 +83,7 @@ type DoJobArgs struct {
 
 type DoJobReply struct {
   Result interface{}
+  Lines []interface{}
   OK bool
   NeedSplits []string
 }

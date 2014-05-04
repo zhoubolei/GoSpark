@@ -92,11 +92,10 @@ func TestMasterMR(t *testing.T) {
   reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
-/*
-  get_args := DoJobArgs{Operation:GetSplit, InputID:[]string{reduce_out}}
+  // get result
+  get_args := DoJobArgs{Operation:GetSplit, InputID:reduce_out}
   var get_reply DoJobReply
   mr.AssignJob(w, &get_args, &get_reply)
-*/
 
   mr.Shutdown()
   // TODO check

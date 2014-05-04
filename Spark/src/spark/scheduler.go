@@ -10,10 +10,12 @@ import "strings"
 
 type Scheduler struct {
     master *Master
-}
+} 
 
-func Call(hostname string, args *DoJobArgs, reply *DoJobReply) error{
-  return nil
+func Call(hostname string, fnName string, args *DoJobArgs, reply *DoJobReply) bool {
+  //return call(hostname, fnName, args, reply)
+  DPrintf("Call(%v, %v, %v)\n", hostname, fnName, args)
+  return true
 }
 
 type Node struct{
@@ -123,8 +125,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sid   := rand.Int() % len(serverList)  // randomly pick one
 	  addressHDFS := serverList[sid]
 	  addressWorkerInMaster := d.findServerAddress(addressHDFS)
+	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
 	  
-	  ok := call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
+	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
   //case MapWithData:
   

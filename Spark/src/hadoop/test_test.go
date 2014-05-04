@@ -7,7 +7,8 @@ import (
 
 func TestBasicRead(t *testing.T) {
 //    fileURI := "hdfs://127.0.0.1:54310/user/hduser/testSplitRead.txt";
-  fileURI := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv";
+//  fileURI := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv";
+  fileURI := "hdfs://127.0.0.1:54310/user/kmean_data.txt";
 
 	s := GetSplitInfo(fileURI)
 	nsplit := s.Len();

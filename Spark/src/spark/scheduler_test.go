@@ -3,10 +3,6 @@ package spark
 import (
   "testing"
   "fmt"
-  "log"
-  "os"
-  "bufio"
-  "time"
   "math/rand"
   "strings"
   "strconv"
@@ -16,8 +12,8 @@ func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
   fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })
   
-  vecs := make(spark.Vector, len(fieldTexts)-1)
-  for i := range vs[1:] {
+  vecs := make(Vector, len(fieldTexts)-1)
+  for i := range vecs[1:] {
     vecs[i-1], _ = strconv.ParseFloat(fieldTexts[i-1], 64)
   }
   return vecs
@@ -26,15 +22,15 @@ func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
 func (f *UserFunc) MapLineToFloatVector(line interface{}) interface{} {
   fieldTexts := strings.Fields(line.(string))
   
-  vecs := make(spark.Vector, len(fieldTexts))
-  for i := range vs {
+  vecs := make(Vector, len(fieldTexts))
+  for i := range vecs {
     vecs[i], _ = strconv.ParseFloat(fieldTexts[i], 64)
   }
   return vecs
 }
 
 type CenterCounter struct {
-    X     gopark.Vector
+    X     Vector
     Count int
 }
 
@@ -62,7 +58,7 @@ func TestBasicScheduler(t *testing.T) {
   
   D := 4
   K := 3
-  MIN_DIST := 0.01
+  //MIN_DIST := 0.01
 
   centers := make([]Vector, K)
   for i := range centers {
@@ -81,11 +77,13 @@ func TestBasicScheduler(t *testing.T) {
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
-  mappedPoints := points.MapWithData("ClosestCenter", Centroids)    
+  mappedPoints := points.MapWithData("ClosestCenter", centers)    
   sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter")
   newCenters := sumCenters.Map("AvgCenter")
-  newCentroids := newCenters.Collect()
-  Centroids = newCentroids
+  newCentersCollected := newCenters.Collect()
+  for i:=0; i<len(newCentersCollected); i++ {
+    centers[i] = newCentersCollected[i].(Vector)
+  }
   
   fmt.Println("Final Centers:", centers)
 }

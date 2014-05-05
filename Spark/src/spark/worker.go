@@ -132,6 +132,24 @@ func (wk *Worker) convert_table(tbl []interface{}) map[interface{}]interface{} {
   return kv
 }
 
+func (wk *Worker) outputs_already_exist(id string, ids []Split) bool {
+  if id != "" {
+    _, exist := wk.read_split("", id)
+    if !exist {
+      return false
+    }
+  }
+  if ids != nil {
+    for _, s := range ids {
+      _, exist := wk.read_split("", s.SplitID)
+      if !exist {
+        return false
+      }
+    }
+  }
+  return true
+}
+
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
@@ -142,6 +160,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   if args.Operation == ReadHDFSSplit {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, nil) {
+      DPrintf("output already exists")
+      res.OK = true
+      return nil
+    }
     // read whole split from HDFS
     lines := make([]interface{}, 0)
     scanner, err := hadoop.GetSplitScanner(args.HDFSFile, args.HDFSSplitID) // get the scanner of current split
@@ -168,6 +192,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == GetSplit {
 
+    // prepare the split
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
@@ -193,6 +218,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == MapJob || args.Operation == FlatMapJob || args.Operation == MapValuesJob || args.Operation == FilterJob {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, nil) {
+      DPrintf("output already exists")
+      res.OK = true
+      return nil
+    }
     // look up function by name
     fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
     if !fn.IsValid() {
@@ -257,6 +288,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == SampleJob {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, nil) {
+      DPrintf("output already exists")
+      res.OK = true
+      return nil
+    }
     // prepare inputs
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
@@ -282,6 +319,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == HashPartJob {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, args.OutputIDs) {
+      DPrintf("outputs already exist")
+      res.OK = true
+      return nil
+    }
     // prepare inputs
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
@@ -337,6 +380,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == ReduceByKeyJob {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, nil) {
+      DPrintf("output already exists")
+      res.OK = true
+      return nil
+    }
     // look up function by name
     fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
     if !fn.IsValid() {
@@ -383,6 +432,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
 
   } else if args.Operation == JoinJob {
 
+    // ignore duplicates
+    if wk.outputs_already_exist(args.OutputID, nil) {
+      DPrintf("output already exists")
+      res.OK = true
+      return nil
+    }
     // prepare inputs
     tbl1, c1, m1 := wk.read_mult_inputs(args.InputIDs)
     tbl2, c2, m2 := wk.read_mult_inputs(args.InputIDs2)

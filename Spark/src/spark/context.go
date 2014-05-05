@@ -1,6 +1,7 @@
 package spark
 
 import (
+  "encoding/gob"
   "time"
   "hadoop"
   "log"
@@ -31,7 +32,8 @@ func NewContext(jobName string) *Context{
   c.scheduler = NewScheduler()
   c.startTime = time.Now()
   log.Printf("Context [%s] is started.", c.jobName)
-  //gob.Register(new(KeyValue))
+  //gob.Register(Vector{})
+  gob.Register(VectorVector{}) 
   return &c
 }
 

@@ -165,7 +165,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName};
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
 	  ok := Call(sIn.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  sOut.Hostname = sIn.Hostname
@@ -316,7 +316,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
       }
       ret = append(ret, reply.Lines)  // append one slice to another : add ...
 	  }
-    return ret
+    return ret 
   case "Count":
   // TODO:
   

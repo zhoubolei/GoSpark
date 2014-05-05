@@ -2,7 +2,7 @@ package spark
 // this vector.go is imported from gopark project
 
 import (
-    "encoding/gob"
+    //"encoding/gob"
     "fmt"
     "math"
     "math/rand"
@@ -14,8 +14,8 @@ type Vector []float64
 type IndexedVector map[interface{}]float64
 
 func init() {
-    gob.Register(new(Vector))
-    gob.Register(new(IndexedVector))
+    //gob.Register(new(Vector))
+    //gob.Register(new(IndexedVector))
 }
 
 // Vector methods

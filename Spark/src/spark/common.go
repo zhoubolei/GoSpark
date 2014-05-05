@@ -3,6 +3,7 @@ package spark
 import (
   "fmt"
   "net/rpc"
+  "encoding/gob"
 )
 
 import "crypto/rand"
@@ -86,6 +87,17 @@ type DoJobReply struct {
   Lines []interface{}
   OK bool
   NeedSplits []string
+}
+
+// in both master and workers, register these objects to gob
+// so that interface can impelement these types
+func register_types(obj []interface{}) {
+  gob.Register(KeyValue{})
+  if obj != nil {
+    for _, o := range obj {
+      gob.Register(o)
+    }
+  }
 }
 
 

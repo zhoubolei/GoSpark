@@ -115,19 +115,6 @@ type DoJobReply struct {
   NeedSplits []string
 }
 
-// in both master and workers, register these objects to gob
-// so that interface can impelement these types
-func register_types(obj []interface{}) {
-  gob.Register(KeyValue{})
-  gob.Register(Pair{})
-  if obj != nil {
-    for _, o := range obj {
-      gob.Register(o)
-    }
-  }
-}
-
-
 // sends an RPC
 
 func call(srv string, rpcname string,

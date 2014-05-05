@@ -11,6 +11,7 @@ import (
   "reflect"
   "time"
   "math/rand"
+  "encoding/gob"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -452,8 +453,11 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
 
 // Set up a connection with the master, register with the master,
 // and wait for jobs from the master
-func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int, obj []interface{}) {
-  register_types(obj)
+func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int) {
+  gob.Register(KeyValue{})
+  gob.Register(Pair{})
+  register_types() // register custom types
+
   DPrintf("RunWorker %s%s\n", me, port)
   wk := new(Worker)
 

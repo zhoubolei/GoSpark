@@ -10,6 +10,7 @@ import (
   "math/rand"
   "strings"
   "strconv"
+  "encoding/gob"
 )
 
 func (u *UserFunc) LineCount(line KeyValue, data KeyValue) interface{} {
@@ -37,6 +38,8 @@ func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue, data KeyValue) interface
 func TestBasicWorker(t *testing.T) {
   fmt.Printf("Test: Basic Worker...\n")
 
+  gob.Register(CenterCounter{})
+  gob.Register(VectorVector{})
   // master ip & port
   f, err := os.Open("config.txt")
   if err != nil {

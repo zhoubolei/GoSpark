@@ -42,17 +42,17 @@ func (f *UserFunc) MapToClosestCenter(line interface{}, userData interface{}) in
   centers := userData.(KeyValue).Value.(VectorVector)
   
   // use stupid method to parse 2D array from 1D array
-  centeri := make(Vector, centers.width)
-  for j := 0; j < centers.width; j++ {
-    centeri[j] = centers.V[0*centers.width + j]
+  centeri := make(Vector, centers.Width)
+  for j := 0; j < centers.Width; j++ {
+    centeri[j] = rand.Float64()  //centers.V[0*centers.Width + j]
   }
-  n := len(centers.V) / centers.width
-  
+  //n := len(centers.V) / centers.Width
+  n := 3
   minDist := p.EulaDistance(centeri)
   minIndex := 0
   for i := 1; i < n; i++ {
-    for j := 0; j < centers.width; j++ {
-      centeri[j] = centers.V[i*centers.width + j]
+    for j := 0; j < centers.Width; j++ {
+      centeri[j] = rand.Float64()  // centers.V[i*centers.width + j]
     }
     dist := p.EulaDistance(centeri)
     if dist < minDist {
@@ -69,8 +69,8 @@ type CenterCounter struct {
 }
 
 type VectorVector struct {
-    V     Vector
-    width int
+    //V     Vector
+    Width int
 }
 
 func (f *UserFunc) AddCenterWCounter(x, y interface{}) interface{} {
@@ -93,11 +93,11 @@ func (f *UserFunc) AvgCenter(x, y interface{}) interface{} {
 
 
 func TestBasicMappingAndCollect(t *testing.T) {
+  gob.Register(CenterCounter{})
+  gob.Register(VectorVector{})
   c := NewContext("kmeans")
   defer c.Stop()
   
-  gob.Register(CenterCounter{})
-  gob.Register(VectorVector{})
   //D := 4
   //K := 16
   //MIN_DIST := 0.01
@@ -138,8 +138,8 @@ func TestKMeansStepByStep(t *testing.T) {
       centers[i*D + j] = rand.Float64()
     }
   }
-  vcenters := VectorVector{}
-  vcenters.V = centers
+  vcenters := VectorVector{Width: D}
+  //vcenters.V = centers
   fmt.Println(centers)
   
   //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")

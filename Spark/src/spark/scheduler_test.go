@@ -71,16 +71,17 @@ func TestBasicScheduler(t *testing.T) {
   fmt.Println(centers)
   
   //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")
-  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/kmean_data.txt")
+  //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://localhost:54310/user/hduser/testSplitRead.txt"); pointsText.name = "pointsText"
   
-  points := pointsText.Map("MapLineToFloatVector").Cache()
+  points := pointsText.Map("MapLineToFloatVector").Cache();  points.name = "points"
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
-  mappedPoints := points.MapWithData("ClosestCenter", centers)    
-  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter")
-  newCenters := sumCenters.Map("AvgCenter")
-  newCentersCollected := newCenters.Collect()
+  mappedPoints := points.MapWithData("ClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
+  newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
+  newCentersCollected := newCenters.Collect()                 
   for i:=0; i<len(newCentersCollected); i++ {
     centers[i] = newCentersCollected[i].(Vector)
   }

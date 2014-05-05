@@ -114,6 +114,9 @@ func (mr *Master) StartRegistrationServer() {
   DPrintf("RegistrationServer: ready")
 }
 
+// peterkty:
+// because mr.workers is a map, so the returned map is the of same pointer to what master have.
+// so some concurrency issue may happen. Better manually do a deep copy of mr.workers and return that copy.
 func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
   mr.mu.RLock()
   defer mr.mu.RUnlock()

@@ -104,21 +104,37 @@ func topSort(dag *Dag) []*RDD{
 
 // turn addressHDFS like vision24.csail.mit.edu to vision24:portname
 func (d *Scheduler) findServerAddress(addressHDFS string) string {
+  DPrintf("addressHDFS: %v\n", addressHDFS)
   hostname := strings.FieldsFunc(addressHDFS, func(c rune) bool { return c == '.' })[0]
-  
+  DPrintf("hostname: %v\n", hostname)
   m := d.master.WorkersAvailable()
   for hostnameWithPort,_ := range m {
+    DPrintf("hostnameWithPort: %v\n", hostnameWithPort)
     if(strings.HasPrefix(hostnameWithPort, hostname)) {
+      DPrintf("hostnameWithPort: %v hostname: %v\n", hostnameWithPort, hostname)
       return hostnameWithPort
     }
+  }
+  DPrintf("return ''\n")
+  return ""
+}
+
+func randomWorkerFromMap(wlist map[string] WorkerInfo) string {
+	randInd := rand.Int() % len(wlist)
+	for k := range wlist {
+	  
+	  if randInd == 0 {
+      return k
+    }
+    randInd--;
   }
   return ""
 }
 
 func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
   // if run before than check if the result exists, if exists don't run again;
-  log.Printf("Scheduler.runThisSplit %v start",  rdd.operationType )
-  defer log.Printf("Scheduler.runThisSplit %v end",  rdd.operationType )
+  DPrintf("Scheduler.runThisSplit name:%v op: %v SpInd:%d start",  rdd.name, rdd.operationType, SpInd)
+  defer DPrintf("Scheduler.runThisSplit name:%v op: %v SpInd:%d end",  rdd.name, rdd.operationType, SpInd )
   
   switch rdd.operationType {
   case HDFSFile:
@@ -126,7 +142,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
 	  
-	  sinfo := hadoop.GetSplitInfoSlice(HDFSFile)
+	  sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
+	  DPrintf("len(sinfo) = %d\n", len(sinfo))
 	  serverList := sinfo[SpInd]
 	  addressWorkerInMaster := ""
 	  for {
@@ -151,6 +168,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID};
 	  ok := Call(sIn.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
+	  sOut.Hostname = sIn.Hostname
 	  
 	  
   case ReduceByKey:
@@ -163,9 +181,11 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     // If shuffle files not correspond to the output
     
     rdd.prevRDD1.shuffleMu.Lock()
+    
+    //DPrintf("172 rdd.prevRDD1.shuffleN=%v nRed=%v\n", rdd.prevRDD1.shuffleN, nRed)
     if(rdd.prevRDD1.shuffleN != nRed) {
       rdd.prevRDD1.shuffleN = nRed
-      ss := make([][]*Split, nSpl)
+      ss = make([][]*Split, nSpl)
       for i:=0; i<nSpl; i++ {
         ss[i] = make([]*Split, nRed)
         for j:=0; j<nRed; j++ {
@@ -179,15 +199,21 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
       y := make(Yielder)
       // do hashPart on each input split
       for i:=0; i<nSpl; i++ {
-			  OutputIDs := make([]Split, nRed)
-			  for j:=0; j<nRed; j++ { OutputIDs[j] = *ss[i][j] }
-			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
-			  go func(args DoJobArgs){
+			  go func(i int, nRed int){
+			    OutputIDs := make([]Split, nRed)
+			    for j:=0; j<nRed; j++ { OutputIDs[j] = *(ss[i][j]) }
+			    args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
+			  
 			    reply := DoJobReply{}
 			    ok := Call(rdd.prevRDD1.splits[i].Hostname, "Worker.DoJob", &args, &reply)
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
+	        
+			    for j:=0; j<nRed; j++ { 
+            (*(ss[i][j])).Hostname = rdd.prevRDD1.splits[i].Hostname			      
+			    }
+	        
 			    y <- 1
-			  } (args)
+			  } (i, nRed)
       }
       for i:=0; i<nSpl; i++ {
         <- y
@@ -201,8 +227,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     // now we can do reduce
 		InputIDs := make([]Split, nSpl)
     reply := DoJobReply{}
-		for i:=0; i<nSpl; i++ { InputIDs[i] = *ss[i][SpInd] }
-    // sOut.hostname = get one from some free worker 
+    //DPrintf("209 nSpl=%v SpInd=%v len(ss)=%v len(ss[i])= nRed=%v\n", nSpl, SpInd, len(ss), nRed)
+		for i:=0; i<nSpl; i++ { InputIDs[i] = *(ss[i][SpInd]) }
+		
+    sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
     args := DoJobArgs{Operation: ReduceByKey, InputIDs: InputIDs, OutputID: sOut.SplitID};
     ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
@@ -213,8 +241,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 }
 
 func (d *Scheduler) runSplit(rdd *RDD, SpInd int) Yielder {
+  DPrintf("Scheduler.runSplit name:%v op: %v SpInd:%d start",  rdd.name, rdd.operationType, SpInd)
   y := make(Yielder)
   go func(){
+    defer DPrintf("Scheduler.runSplit name:%v op: %v SpInd:%d end",  rdd.name, rdd.operationType, SpInd )
     var cy1, cy2 Yielder
     if rdd.dependType != Wide && rdd.prevRDD1 != nil {
       cy1 = d.runSplit(rdd.prevRDD1, SpInd)
@@ -232,8 +262,15 @@ func (d *Scheduler) runSplit(rdd *RDD, SpInd int) Yielder {
 }
 
 func (d *Scheduler) runRDDInStage(rdd* RDD) {
+  ys := []Yielder{}
   for i:=0; i<rdd.length; i++ {
-    d.runSplit(rdd, i);
+    DPrintf("Scheduler.runRDDInStage name:%v op: %v SpInd:%d start",  rdd.name, rdd.operationType, i)
+    ys = append(ys, d.runSplit(rdd, i))
+  }
+  // wait for each split to complete, 
+  // TODO handle failure here
+  for i:=0; i<rdd.length; i++ {
+    <- ys[i]
   }
 }
 
@@ -245,9 +282,9 @@ func (d *Scheduler) computeRDDByStage(rdd* RDD) {
   DPrintf("Dag: %v", dag)
   // 2. topological sort DAG
   sortedList := topSort(dag)
-  DPrintf("SortedList: ", sortedList)
+  DPrintf("SortedList: ")
   for i:=0; i<len(sortedList); i++ {
-    DPrintf("op: %v\n", (*(sortedList[i])).operationType)
+    DPrintf("  %2d rdd: %v op: %v\n", i+1, (*(sortedList[i])).name, (*(sortedList[i])).operationType)
   }
   // 3. Run each stage according to sorted order
   for i:=0; i<len(sortedList); i++ {
@@ -277,7 +314,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n")
       }
-      ret = append(ret, reply.Result)
+      ret = append(ret, reply.Lines)  // append one slice to another : add ...
 	  }
     return ret
   case "Count":

@@ -3,7 +3,17 @@ package hadoop
 import (
     "testing"
     "fmt"
+    "log"
 )
+
+const Debug=1
+
+func DPrintf(format string, a ...interface{}) (n int, err error) {
+  if Debug > 0 {
+    log.Printf(format, a...)
+  }
+  return
+}
 
 func TestBasicRead(t *testing.T) {
 //    fileURI := "hdfs://127.0.0.1:54310/user/hduser/testSplitRead.txt";
@@ -22,10 +32,25 @@ func TestBasicRead(t *testing.T) {
 	    fmt.Println();
 	}
     
-    scanner, _ := GetSplitScanner(fileURI, 0); // get the scanner of split 0
+  scanner, _ := GetSplitScanner(fileURI, 0); // get the scanner of split 0
     
-    for scanner.Scan() {
+  for scanner.Scan() {
 		fmt.Println(scanner.Text()) // read one line of data in split
 	}
 }
 
+func TestGetInfoSlice(t *testing.T) {
+  fileURI := "hdfs://127.0.0.1:54310/user/kmean_data.txt";
+	s := GetSplitInfoSlice(fileURI)
+	nsplit := len(s);
+	DPrintf("nsplit = %v\n", nsplit)
+	fmt.Printf("This file has %d splits\n", nsplit);
+	for i := 0; i < nsplit; i++ {
+	    slist := s[i]
+	    for j:=0; j<len(slist); j++ {
+	        fmt.Printf("%v ", slist[j]);
+	    }
+	    fmt.Println();
+	}
+    
+}

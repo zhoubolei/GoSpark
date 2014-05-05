@@ -6,7 +6,7 @@ import (
 
 // this base RDD to have more types of RDD map, join, ..., HDFS file
 type RDD struct {
-  id              string
+  name            string
   ctx             *Context
   length          int       // number of splits
   splits          []*Split
@@ -90,7 +90,7 @@ func (r *RDD) Collect() []interface{} {
   ret := x[0].([]interface{})
   
   for i:=1; i<len(x); i++ {
-    ret = append(ret, x[i].([]interface{}))
+    ret = append(ret, x[i].([]interface{})...)
   }
   return ret
 }

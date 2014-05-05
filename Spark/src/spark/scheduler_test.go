@@ -16,7 +16,7 @@ func (f *UserFunc) MapLineToAnotherLine(line interface{}, userData interface{}) 
   return line.(KeyValue).Value.(string) + "aaaaaa"
 }
 
-func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
+func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}, userData interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
   fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })
   
@@ -50,7 +50,10 @@ func (f *UserFunc) MapToClosestCenter(line interface{}, userData interface{}) in
       minIndex = i
     }
   }
-  return minIndex
+  return KeyValue{
+                Key:   minIndex,
+                Value: CenterCounter{p, 1},
+         }
 }
 
 type CenterCounter struct {
@@ -63,21 +66,21 @@ type VectorVector struct {
     Width int
 }
 
-func (f *UserFunc) AddCenterWCounter(x, y interface{}) interface{} {
-  cc1 := x.(CenterCounter)
-  cc2 := y.(CenterCounter)
+func (f *UserFunc) AddCenterWCounter(x interface{}, y interface{}, userData interface{}) interface{} {
+  cc1 := x.(KeyValue).Value.(CenterCounter)
+  cc2 := y.(KeyValue).Value.(CenterCounter)
   return CenterCounter{
     X:     cc1.X.Plus(cc2.X),
     Count: cc1.Count + cc2.Count,
   }
 }
 
-func (f *UserFunc) AvgCenter(x, y interface{}) interface{} {
-  cc1 := x.(CenterCounter)
-  cc2 := y.(CenterCounter)
-  return CenterCounter{
-    X:     cc1.X.Plus(cc2.X),
-    Count: cc1.Count + cc2.Count,
+func (f *UserFunc) AvgCenter(x interface{}, userData interface{}) interface{} {
+  keyValue := x.(KeyValue).Value.(KeyValue)
+  cc := keyValue.Value.(CenterCounter)
+  return KeyValue{
+    Key:   keyValue.Key,
+    Value: cc.X.Divide(float64(cc.Count)),
   }
 }
 
@@ -111,7 +114,7 @@ func TestBasicMappingAndCollect(t *testing.T) {
 }
 
 
-func TestKMeansStepByStep(t *testing.T) {
+func xTestKMeansStepByStep(t *testing.T) {
   c := NewContext("kmeans")
   defer c.Stop()
   
@@ -141,7 +144,7 @@ func TestKMeansStepByStep(t *testing.T) {
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
   mappedPoints := points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
-  //sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
+  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
   //newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
   //newCentersCollected := newCenters.Collect()                 
   //for i:=0; i<len(newCentersCollected); i++ {
@@ -155,9 +158,13 @@ func TestKMeansStepByStep(t *testing.T) {
   //fmt.Println("Final Centers:", centers)
 }
 
+
 func TestKMeans(t *testing.T) {
   c := NewContext("kmeans")
   defer c.Stop()
+  
+  gob.Register(CenterCounter{})
+  gob.Register([]Vector{})
   
   D := 4
   K := 3
@@ -181,12 +188,57 @@ func TestKMeans(t *testing.T) {
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
-  mappedPoints := points.MapWithData("ClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+  
+  for i := 0; i < 10; i++ {
+      fmt.Println("Iter:", i)
+		  mappedPoints := points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+		  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
+		  newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
+		  newCentersCollected := newCenters.Collect()                 
+		  for i:=0; i<len(newCentersCollected); i++ {
+		    centers[i] = *(newCentersCollected[i].(KeyValue).Value.(*Vector))
+		  }
+      fmt.Printf("Round %v Centers: %v\n", i, centers)
+  }
+  
+}
+
+
+func xTestKMeansOneIter(t *testing.T) {
+  c := NewContext("kmeans")
+  defer c.Stop()
+  
+  gob.Register(CenterCounter{})
+  gob.Register([]Vector{})
+  
+  D := 4
+  K := 3
+  //MIN_DIST := 0.01
+
+  centers := make([]Vector, K)
+  for i := range centers {
+    center := make(Vector, D)
+    for j := range center {
+      center[j] = rand.Float64()
+    }
+    centers[i] = center
+  }
+  fmt.Println(centers)
+  
+  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")
+  pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
+  //pointsText := c.TextFile("hdfs://localhost:54310/user/hduser/testSplitRead.txt"); pointsText.name = "pointsText"
+  
+  points := pointsText.Map("MapLineToFloatVector").Cache();  points.name = "points"
+  
+  // run one kmeans iteration
+  // points (x,y) -> (index of the closest center, )
+  mappedPoints := points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
   sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
   newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
   newCentersCollected := newCenters.Collect()                 
   for i:=0; i<len(newCentersCollected); i++ {
-    centers[i] = newCentersCollected[i].(Vector)
+    centers[i] = *(newCentersCollected[i].(KeyValue).Value.(*Vector))
   }
   
   fmt.Println("Final Centers:", centers)

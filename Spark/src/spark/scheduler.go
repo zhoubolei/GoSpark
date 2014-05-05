@@ -345,7 +345,7 @@ func NewScheduler() *Scheduler {
   
     address := master_ip 
     port := master_port
-    scheduler.master = MakeMaster(address, port)   
+    scheduler.master = MakeMaster(address, port, nil)   
 
     return &scheduler
 }

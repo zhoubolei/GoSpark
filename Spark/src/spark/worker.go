@@ -10,7 +10,6 @@ import (
   "log"
   "sync"
   "reflect"
-  "encoding/gob"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -245,6 +244,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         kv[k] = list.New()
       }
       kv[k].PushBack(v)
+      DPrintf("  read k %v v %v", k, v)
     }
     // perform reducer function
     for k, vl := range kv {
@@ -314,8 +314,8 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
 
 // Set up a connection with the master, register with the master,
 // and wait for jobs from the master
-func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int) {
-  gob.Register(KeyValue{})
+func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int, obj []interface{}) {
+  register_types(obj)
   DPrintf("RunWorker %s%s\n", me, port)
   wk := new(Worker)
 

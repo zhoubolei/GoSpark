@@ -20,6 +20,20 @@ func (u *UserFunc) SumInt(a KeyValue, b KeyValue, data KeyValue) interface{} {
   return a.Value.(int) + b.Value.(int)
 }
 
+
+type MyStruct struct {
+  N int
+}
+
+func (u *UserFunc) CharCountStruct(line KeyValue, data KeyValue) interface{} {
+  cnt := len(line.Value.(string))
+  return KeyValue{Key:"x", Value:MyStruct{N:cnt}}
+}
+
+func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue, data KeyValue) interface{} {
+  return MyStruct{N:a.Value.(MyStruct).N + b.Value.(MyStruct).N}
+}
+
 func TestBasicWorker(t *testing.T) {
   fmt.Printf("Test: Basic Worker...\n")
 
@@ -50,5 +64,5 @@ func TestBasicWorker(t *testing.T) {
   my_port := strings.Join([]string{":", strconv.Itoa(port)}, "")
   fmt.Printf("worker ip %s port %s\n", my_ip, my_port)
 
-  RunWorker(master_ip, master_port, my_ip, my_port, -1)
+  RunWorker(master_ip, master_port, my_ip, my_port, -1, []interface{}{MyStruct{}})
 }

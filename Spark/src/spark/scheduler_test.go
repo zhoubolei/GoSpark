@@ -39,12 +39,22 @@ func (f *UserFunc) MapLineToFloatVector(line interface{}, userData interface{}) 
 
 func (f *UserFunc) MapToClosestCenter(line interface{}, userData interface{}) interface{} {
   p := line.(KeyValue).Value.(Vector)
-  centers := userData.(KeyValue).Value.(VectorVector).V
+  centers := userData.(KeyValue).Value.(VectorVector)
   
-  minDist := p.EulaDistance(centers[0])
+  // use stupid method to parse 2D array from 1D array
+  centeri := make(Vector, centers.width)
+  for j := 0; j < centers.width; j++ {
+    centeri[j] = centers.V[0*centers.width + j]
+  }
+  n := len(centers.V) / centers.width
+  
+  minDist := p.EulaDistance(centeri)
   minIndex := 0
-  for i := 1; i < len(centers); i++ {
-    dist := p.EulaDistance(centers[i])
+  for i := 1; i < n; i++ {
+    for j := 0; j < centers.width; j++ {
+      centeri[j] = centers.V[i*centers.width + j]
+    }
+    dist := p.EulaDistance(centeri)
     if dist < minDist {
       minDist = dist
       minIndex = i
@@ -60,6 +70,7 @@ type CenterCounter struct {
 
 type VectorVector struct {
     V     Vector
+    width int
 }
 
 func (f *UserFunc) AddCenterWCounter(x, y interface{}) interface{} {
@@ -121,13 +132,11 @@ func TestKMeansStepByStep(t *testing.T) {
   K := 3
   //MIN_DIST := 0.01
 
-  centers := make([]Vector, K)
-  for i := range centers {
-    center := make(Vector, D)
-    for j := range center {
-      center[j] = rand.Float64()
+  centers := make(Vector, D*K)
+  for i := 0; i<K; i++  {
+    for j := 0; j<D; j++ {
+      centers[i*D + j] = rand.Float64()
     }
-    centers[i] = center
   }
   vcenters := VectorVector{}
   vcenters.V = centers

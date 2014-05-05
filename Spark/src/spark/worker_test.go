@@ -13,11 +13,11 @@ import (
   "encoding/gob"
 )
 
-func (u *UserFunc) LineCount(line KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) LineCount(line KeyValue) interface{} {
   return KeyValue{Key:"x", Value:1}
 }
 
-func (u *UserFunc) SumInt(a KeyValue, b KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) SumInt(a KeyValue, b KeyValue) interface{} {
   return a.Value.(int) + b.Value.(int)
 }
 
@@ -26,12 +26,12 @@ type MyStruct struct {
   N int
 }
 
-func (u *UserFunc) CharCountStruct(line KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) CharCountStruct(line KeyValue) interface{} {
   cnt := len(line.Value.(string))
   return KeyValue{Key:"x", Value:MyStruct{N:cnt}}
 }
 
-func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue) interface{} {
   return MyStruct{N:a.Value.(MyStruct).N + b.Value.(MyStruct).N}
 }
 

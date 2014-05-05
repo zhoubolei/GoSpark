@@ -89,7 +89,7 @@ func TestMasterMRLineCount(t *testing.T) {
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
-  reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
+  reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
   // get result
@@ -197,7 +197,7 @@ func TestMasterMRCharCountStruct(t *testing.T) {
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
-  reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
+  reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
   // get result

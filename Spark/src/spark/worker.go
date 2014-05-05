@@ -1,7 +1,6 @@
 package spark
 
 import (
-  "container/list"
   "net"
   "net/rpc"
   "hadoop"
@@ -11,6 +10,7 @@ import (
   "sync"
   "reflect"
   "time"
+  "math/rand"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -31,21 +31,29 @@ type Worker struct {
   jobThread map[int]int
 }
 
-func (wk *Worker) reduce_list(p *list.Element, data interface{}, fn reflect.Value) interface{} {
-  if p.Next() == nil {
-    return p.Value
+func (wk *Worker) reduce_slice(arr []interface{}, data interface{}, fn reflect.Value) interface{} {
+  if len(arr) == 0 {
+    return nil
+  } else if len(arr) == 1 {
+    return arr[0]
   } else {
-    // apply reducer function recursively
-    head := p.Value
-    tail := wk.reduce_list(p.Next(), data, fn)
-    // call function by name
-    // convert to KeyValue before calling UserFunc
-    // because reflect doesn't support interface{} as arguments
-    a1 := reflect.ValueOf(KeyValue{Value:head})
-    a2 := reflect.ValueOf(KeyValue{Value:tail})
-    a3 := reflect.ValueOf(KeyValue{Value:data})
-    r := fn.Call([]reflect.Value{a1, a2, a3}) // TODO check function type
-    return r[0].Interface()
+    s := arr[0]
+    var r []reflect.Value
+    for i := 1; i < len(arr); i++ {
+      // call function by name
+      // convert to KeyValue before calling UserFunc
+      // because reflect doesn't support interface{} as arguments
+      a1 := reflect.ValueOf(KeyValue{Value:s})
+      a2 := reflect.ValueOf(KeyValue{Value:arr[i]})
+      if data != nil {
+        a3 := reflect.ValueOf(KeyValue{Value:data})
+        r = fn.Call([]reflect.Value{a1, a2, a3}) // TODO check function type
+      } else {
+        r = fn.Call([]reflect.Value{a1, a2}) // TODO check function type
+      }
+      s = r[0].Interface()
+    }
+    return s
   }
 }
 
@@ -113,6 +121,16 @@ func (wk *Worker) read_mult_inputs(ids []Split) ([]interface{}, bool, []string) 
   }
 }
 
+func (wk *Worker) convert_table(tbl []interface{}) map[interface{}]interface{} { // assume keys are unique
+  kv := make(map[interface{}]interface{})
+  for _, t := range tbl {
+    k := t.(KeyValue).Key
+    v := t.(KeyValue).Value
+    kv[k] = v
+  }
+  return kv
+}
+
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
@@ -121,8 +139,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   res.OK = false
   res.NeedSplits = nil
 
-  switch args.Operation {
-  case ReadHDFSSplit:
+  if args.Operation == ReadHDFSSplit {
+
     // read whole split from HDFS
     lines := make([]interface{}, 0)
     scanner, err := hadoop.GetSplitScanner(args.HDFSFile, args.HDFSSplitID) // get the scanner of current split
@@ -142,11 +160,13 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.Result = len(lines) // line count
     res.OK = true
 
-  case HasSplit:
+  } else if args.Operation == HasSplit {
+
     _, res.Result, _ = wk.read_one_input(args.InputID, args.InputIDs)
     res.OK = true
 
-  case GetSplit:
+  } else if args.Operation == GetSplit {
+
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
@@ -158,7 +178,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.Lines = arr // split content
     res.OK = true
 
-  case Count: // TODO remove?
+  } else if args.Operation == Count {
+
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
@@ -169,7 +190,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.Result = len(arr) // line count
     res.OK = true
 
-  case MapJob:
+  } else if args.Operation == MapJob || args.Operation == FlatMapJob || args.Operation == MapValuesJob || args.Operation == FilterJob {
+
     // look up function by name
     fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
     if !fn.IsValid() {
@@ -186,25 +208,79 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       return nil
     }
     // perform mapper function on each line
-    out := make([]interface{}, len(arr))
-    for i, line := range arr {
-      // call function by name
-      // convert to KeyValue before calling UserFunc
-      // because reflect doesn't support interface{} as arguments
-      a1 := reflect.ValueOf(KeyValue{Value:line})
-      a2 := reflect.ValueOf(KeyValue{Value:args.Data})
-      r := fn.Call([]reflect.Value{a1, a2}) // TODO check function type
-      out[i] = r[0].Interface()
+    out := make([]interface{}, 0)
+    var r []reflect.Value
+    for _, line := range arr {
+      if args.Operation == MapJob || args.Operation == FlatMapJob {
+        // call function by name
+        // convert to KeyValue before calling UserFunc
+        // because reflect doesn't support interface{} as arguments
+        a1 := reflect.ValueOf(KeyValue{Value:line})
+        if args.Data != nil {
+          a2 := reflect.ValueOf(KeyValue{Value:args.Data})
+          r = fn.Call([]reflect.Value{a1, a2}) // TODO check function type
+        } else {
+          r = fn.Call([]reflect.Value{a1}) // TODO check function type
+        }
+        out = append(out, r[0].Interface())
+      } else if args.Operation == MapValuesJob {
+        k := line.(KeyValue).Key
+        v := line.(KeyValue).Value
+        a1 := reflect.ValueOf(KeyValue{Value:v})
+        if args.Data != nil {
+          a2 := reflect.ValueOf(KeyValue{Value:args.Data})
+          r = fn.Call([]reflect.Value{a1, a2}) // TODO check function type
+        } else {
+          r = fn.Call([]reflect.Value{a1}) // TODO check function type
+        }
+        out = append(out, KeyValue{Key:k, Value:r[0].Interface()}) // <old key, new value>
+      } else { // FilterJob
+        a1 := reflect.ValueOf(KeyValue{Value:line})
+        if args.Data != nil {
+          a2 := reflect.ValueOf(KeyValue{Value:args.Data})
+          r = fn.Call([]reflect.Value{a1, a2}) // TODO check function type
+        } else {
+          r = fn.Call([]reflect.Value{a1}) // TODO check function type
+        }
+        if r[0].Interface().(bool) {
+          out = append(out, line)
+        }
+      }
     }
     // store to memory
     wk.mu.Lock()
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    //DPrintf("Map out %v", out)
     res.OK = true
 
-  case HashPartJob:
+  } else if args.Operation == SampleJob {
+
+    // prepare inputs
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
+    if !exists {
+      DPrintf("not found")
+      res.OK = false
+      res.NeedSplits = []string{id}
+      return nil
+    }
+    // perform random sample
+    total := len(arr)
+    r := rand.New(rand.NewSource(args.SampleSeed))
+    out := make([]interface{}, 0)
+    for i := 0; i < args.SampleN; i++ {
+      j := r.Intn(total)
+      out = append(out, arr[j])
+    }
+    // store to memory
+    wk.mu.Lock()
+    wk.mem[args.OutputID] = out
+    wk.mu.Unlock()
+    // reply
+    res.OK = true
+
+  } else if args.Operation == HashPartJob {
+
     // prepare inputs
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
@@ -234,7 +310,8 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // reply
     res.OK = true
 
-  case ReduceByKeyJob:
+  } else if args.Operation == ReduceJob {
+
     // look up function by name
     fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
     if !fn.IsValid() {
@@ -243,7 +320,30 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       return nil
     }
     // prepare inputs
-    kv := make(map[interface{}]*list.List) // key -> list of values
+    lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
+    // some splits missing
+    if !complete {
+      DPrintf("not found %v", missing)
+      // reply
+      res.OK = false
+      res.NeedSplits = missing
+      return nil
+    }
+    // all splits present
+    // perform reducer function
+    res.Result = wk.reduce_slice(lines, args.Data, fn) // reduce to one result
+    res.OK = true
+
+  } else if args.Operation == ReduceByKeyJob {
+
+    // look up function by name
+    fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
+    if !fn.IsValid() {
+      DPrintf("undefined")
+      res.OK = false
+      return nil
+    }
+    // prepare inputs
     lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
     // some splits missing
     if !complete {
@@ -255,27 +355,22 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     }
     // all splits present
     // sort by key
+    kv := make(map[interface{}]([]interface{})) // key -> slice of values
     for _, line := range lines {
       k := line.(KeyValue).Key
       v := line.(KeyValue).Value
       _, allocated := kv[k]
       if !allocated {
-        kv[k] = list.New()
+        kv[k] = make([]interface{}, 0)
       }
-      kv[k].PushBack(v)
+      kv[k] = append(kv[k], v)
     }
     // perform reducer function
-    for k, vl := range kv {
-      if vl == nil || vl.Len() == 0 {
-        delete(kv, k)
-      }
-    }
-    //DPrintf("Shuffled %v", kv)
     out := make([]interface{}, len(kv)) // each line for one key
     i := 0
     for k, vl := range kv {
       // perform reducer function on the list of values
-      out[i] = KeyValue{Key:k, Value:wk.reduce_list(vl.Front(), args.Data, fn)}
+      out[i] = KeyValue{Key:k, Value:wk.reduce_slice(vl, args.Data, fn)} // <original key, reduced value>
       i++
     }
     // store to memory
@@ -283,12 +378,44 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    //DPrintf("Reduce out %v %v", args.OutputID, out)
     res.OK = true
 
-  default:
-    DPrintf("unknown job")
+  } else if args.Operation == JoinJob {
+
+    // prepare inputs
+    tbl1, c1, m1 := wk.read_mult_inputs(args.InputIDs)
+    tbl2, c2, m2 := wk.read_mult_inputs(args.InputIDs2)
+    // some splits missing
+    if !c1 || !c2 {
+      DPrintf("not found %v %v", m1, m2)
+      // reply
+      res.OK = false
+      res.NeedSplits = append(m1, m2...)
+      return nil
+    }
+    // all splits present
+    // perform inner join
+    kv1 := wk.convert_table(tbl1)
+    kv2 := wk.convert_table(tbl2)
+    inner_join := make([]interface{}, 0)
+    for k, v1 := range kv1 {
+      v2, exist := kv2[k]
+      if exist {
+        inner_join = append(inner_join, KeyValue{Key:k, Value:Pair{First:v1, Second:v2}})
+      }
+    }
+    // store to memory
+    wk.mu.Lock()
+    wk.mem[args.OutputID] = inner_join
+    wk.mu.Unlock()
+    // reply
+    res.OK = true
+
+  } else {
+
+    DPrintf("unknown job: %s", args.Operation)
     res.OK = false
+    return nil
 
   }
 

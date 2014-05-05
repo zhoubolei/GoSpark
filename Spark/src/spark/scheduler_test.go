@@ -39,22 +39,12 @@ func (f *UserFunc) MapLineToFloatVector(line interface{}, userData interface{}) 
 
 func (f *UserFunc) MapToClosestCenter(line interface{}, userData interface{}) interface{} {
   p := line.(KeyValue).Value.(Vector)
-  centers := userData.(KeyValue).Value.(VectorVector)
+  centers := userData.(KeyValue).Value.([]Vector)
   
-  // use stupid method to parse 2D array from 1D array
-  centeri := make(Vector, centers.Width)
-  for j := 0; j < centers.Width; j++ {
-    centeri[j] = rand.Float64()  //centers.V[0*centers.Width + j]
-  }
-  //n := len(centers.V) / centers.Width
-  n := 3
-  minDist := p.EulaDistance(centeri)
+  minDist := p.EulaDistance(centers[0])
   minIndex := 0
-  for i := 1; i < n; i++ {
-    for j := 0; j < centers.Width; j++ {
-      centeri[j] = rand.Float64()  // centers.V[i*centers.width + j]
-    }
-    dist := p.EulaDistance(centeri)
+  for i := 1; i < len(centers); i++ {
+    dist := p.EulaDistance(centers[i])
     if dist < minDist {
       minDist = dist
       minIndex = i
@@ -126,20 +116,20 @@ func TestKMeansStepByStep(t *testing.T) {
   defer c.Stop()
   
   gob.Register(CenterCounter{})
-  gob.Register(VectorVector{})
+  gob.Register([]Vector{})
   
   D := 4
   K := 3
   //MIN_DIST := 0.01
 
-  centers := make(Vector, D*K)
-  for i := 0; i<K; i++  {
-    for j := 0; j<D; j++ {
-      centers[i*D + j] = rand.Float64()
+  centers := make([]Vector, K)
+  for i := range centers {
+    center := make(Vector, D)
+    for j := range center {
+      center[j] = rand.Float64()
     }
+    centers[i] = center
   }
-  vcenters := VectorVector{Width: D}
-  //vcenters.V = centers
   fmt.Println(centers)
   
   //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")
@@ -150,7 +140,7 @@ func TestKMeansStepByStep(t *testing.T) {
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
-  mappedPoints := points.MapWithData("MapToClosestCenter", vcenters); mappedPoints.name = "mappedPoints"   
+  mappedPoints := points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
   //sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
   //newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
   //newCentersCollected := newCenters.Collect()                 

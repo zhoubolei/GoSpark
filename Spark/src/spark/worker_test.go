@@ -39,7 +39,7 @@ func TestBasicWorker(t *testing.T) {
   fmt.Printf("Test: Basic Worker...\n")
 
   gob.Register(CenterCounter{})
-  gob.Register(VectorVector{})
+  gob.Register([]Vector{})
   // master ip & port
   f, err := os.Open("config.txt")
   if err != nil {

@@ -202,6 +202,36 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     DPrintf("Map out %v", out)
     res.OK = true
 
+  case HashPartJob:
+    // prepare inputs
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
+    if !exists {
+      DPrintf("not found")
+      res.OK = false
+      res.NeedSplits = []string{id}
+      return nil
+    }
+    // perform hash partition on each line
+    n := len(args.OutputIDs)
+    out := make([]([]interface{}), n)
+    for i := 0; i < n; i++ {
+      out[i] = make([]interface{}, 0)
+    }
+    for _, line := range arr {
+      k := line.(KeyValue).Key
+      p := hash(k) % int64(n)
+      out[p] = append(out[p], line)
+    }
+    // store to memory
+    wk.mu.Lock()
+    for i := 0; i < n; i++ {
+      DPrintf("Hash partition %d %v", i, out[i])
+      wk.mem[args.OutputIDs[i].SplitID] = out[i]
+    }
+    wk.mu.Unlock()
+    // reply
+    res.OK = true
+
   case ReduceByKeyJob:
     // look up function by name
     fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)

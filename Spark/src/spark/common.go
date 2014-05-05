@@ -4,11 +4,12 @@ import (
   "fmt"
   "net/rpc"
   "encoding/gob"
+  "math/big"
+  "crypto/rand"
+  "crypto/md5"
+  "bytes"
+  "strconv"
 )
-
-import "crypto/rand"
-import "strconv"
-import "math/big"
 
 func nrand() string {
   max := big.NewInt(int64(1) << 62)
@@ -17,6 +18,23 @@ func nrand() string {
   return strconv.FormatInt(x, 10)
 }
 
+func hash(v interface{}) int64 {
+  if v == nil {
+    return 0
+  }
+  buf := new(bytes.Buffer)
+  enc := gob.NewEncoder(buf)
+  enc.Encode(v)
+  h := md5.New()
+  h.Write(buf.Bytes())
+  arr := h.Sum(nil)
+  sum := int64(0)
+  for _, x := range arr {
+    sum *= 256
+    sum += int64(x)
+  }
+  return sum
+}
 
 // peterkty: should all append "job"
 const (

@@ -36,15 +36,20 @@ func hash(v interface{}) int64 {
   return sum
 }
 
-// peterkty: should all append "job"
 const (
-  ReadHDFSSplit = "ReadHDFSSplit"
-  HasSplit      = "HasSplit"
-  GetSplit      = "GetSplit"
-  Count         = "Count"
-  MapJob        = "Map"
-  HashPartJob   = "HashPartJob"
-  ReduceByKeyJob = "ReduceByKey"
+  ReadHDFSSplit   = "ReadHDFSSplit"
+  HasSplit        = "HasSplit"
+  GetSplit        = "GetSplit"
+  Count           = "Count"
+  MapJob          = "MapJob"
+  FlatMapJob      = "FlatMapJob"
+  MapValuesJob    = "MapValuesJob"
+  FilterJob       = "FilterJob"
+  SampleJob       = "SampleJob"
+  HashPartJob     = "HashPartJob"
+  ReduceJob       = "ReduceJob"
+  ReduceByKeyJob  = "ReduceByKeyJob"
+  JoinJob         = "JoinJob"
 )
 
 type Yielder chan interface{}
@@ -94,9 +99,12 @@ type DoJobArgs struct {
   HDFSSplitID int
   InputID string
   InputIDs []Split
+  InputIDs2 []Split // for Join
   OutputID string
   OutputIDs []Split
   Function string
+  SampleN int
+  SampleSeed int64
   Data interface{} // in case other inputs are needed
 }
 
@@ -106,18 +114,6 @@ type DoJobReply struct {
   OK bool
   NeedSplits []string
 }
-
-// in both master and workers, register these objects to gob
-// so that interface can impelement these types
-func register_types(obj []interface{}) {
-  gob.Register(KeyValue{})
-  if obj != nil {
-    for _, o := range obj {
-      gob.Register(o)
-    }
-  }
-}
-
 
 // sends an RPC
 

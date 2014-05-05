@@ -12,7 +12,7 @@ import (
   "time"
 )
 
-func make_master(obj []interface{}) *Master {
+func make_master() *Master {
   // master ip & port
   f, err := os.Open("config.txt")
   if err != nil {
@@ -25,12 +25,12 @@ func make_master(obj []interface{}) *Master {
   master_port := s.Text()
   fmt.Printf("master ip %s port %s\n", master_ip, master_port)
 
-  return MakeMaster(master_ip, master_port, obj)
+  return MakeMaster(master_ip, master_port)
 }
 
 func TestBasicMaster(t *testing.T) {
   fmt.Printf("Test: Basic Master Line Count...\n")
-  mr := make_master(nil)
+  mr := make_master()
   file := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv"
   nsplits := hadoop.GetSplitInfo(file).Len()
   i := 0
@@ -60,7 +60,7 @@ func TestBasicMaster(t *testing.T) {
 
 func TestMasterMRLineCount(t *testing.T) {
   fmt.Printf("Test: Master MapReduce Line Count...\n")
-  mr := make_master(nil)
+  mr := make_master()
   file := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv"
   nsplits := hadoop.GetSplitInfo(file).Len()
   workers := mr.WorkersAvailable()
@@ -89,7 +89,7 @@ func TestMasterMRLineCount(t *testing.T) {
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
-  reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
+  reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
   // get result
@@ -107,7 +107,7 @@ func TestMasterMRLineCount(t *testing.T) {
 
 func TestMasterNotFound(t *testing.T) {
   fmt.Printf("Test: Master File Not Found...\n")
-  mr := make_master(nil)
+  mr := make_master()
   workers := mr.WorkersAvailable()
   for len(workers) < 1 {
     time.Sleep(1 * time.Second)
@@ -133,7 +133,7 @@ func TestMasterNotFound(t *testing.T) {
 
 func TestMasterGetSplit(t *testing.T) {
   fmt.Printf("Test: Master Get Split...\n")
-  mr := make_master(nil)
+  mr := make_master()
   workers := mr.WorkersAvailable()
   for len(workers) < 1 {
     time.Sleep(1 * time.Second)
@@ -168,7 +168,7 @@ func TestMasterGetSplit(t *testing.T) {
 func TestMasterMRCharCountStruct(t *testing.T) {
 // TODO let worker register new types
   fmt.Printf("Test: Master MapReduce Char Count with Custom Struct...\n")
-  mr := make_master([]interface{}{MyStruct{}})
+  mr := make_master()
   file := "hdfs://vision24.csail.mit.edu:54310/user/kmean_data.txt"
   nsplits := hadoop.GetSplitInfo(file).Len()
   workers := mr.WorkersAvailable()
@@ -197,7 +197,7 @@ func TestMasterMRCharCountStruct(t *testing.T) {
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
-  reduce_args := DoJobArgs{Operation:ReduceByKey, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
+  reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
   var reduce_reply DoJobReply
   mr.AssignJob(w, &reduce_args, &reduce_reply)
   // get result

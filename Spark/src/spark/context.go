@@ -23,6 +23,11 @@ type KeyValue struct {
     Value interface{}
 }
 
+type Pair struct {
+    First interface{}
+    Second interface{}
+}
+
 func (kv *KeyValue) String() string {
   return fmt.Sprintf("%v:%v", kv.Key, kv.Value)
 }

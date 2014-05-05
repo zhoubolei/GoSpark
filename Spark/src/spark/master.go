@@ -6,6 +6,7 @@ import (
   "net/rpc"
   "log"
   "sync"
+  "encoding/gob"
 )
 
 const Debug=1
@@ -35,8 +36,11 @@ type Master struct {
   workers map[string]WorkerInfo
 }
 
-func MakeMaster(ip string, port string, obj []interface{}) *Master {
-  register_types(obj)
+func MakeMaster(ip string, port string) *Master {
+  gob.Register(KeyValue{})
+  gob.Register(Pair{})
+  register_types() // register custom types
+
   mr := Master{}
   mr.MasterAddress = ip
   mr.MasterPort = port

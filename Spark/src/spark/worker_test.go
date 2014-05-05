@@ -13,11 +13,19 @@ import (
   "encoding/gob"
 )
 
-func (u *UserFunc) LineCount(line KeyValue, data KeyValue) interface{} {
+// custom types
+func register_types() {
+  gob.Register(CenterCounter{})
+  gob.Register([]Vector{})
+  gob.Register(MyStruct{})
+}
+
+
+func (u *UserFunc) LineCount(line KeyValue) interface{} {
   return KeyValue{Key:"x", Value:1}
 }
 
-func (u *UserFunc) SumInt(a KeyValue, b KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) SumInt(a KeyValue, b KeyValue) interface{} {
   return a.Value.(int) + b.Value.(int)
 }
 
@@ -26,20 +34,18 @@ type MyStruct struct {
   N int
 }
 
-func (u *UserFunc) CharCountStruct(line KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) CharCountStruct(line KeyValue) interface{} {
   cnt := len(line.Value.(string))
   return KeyValue{Key:"x", Value:MyStruct{N:cnt}}
 }
 
-func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue, data KeyValue) interface{} {
+func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue) interface{} {
   return MyStruct{N:a.Value.(MyStruct).N + b.Value.(MyStruct).N}
 }
 
 func TestBasicWorker(t *testing.T) {
   fmt.Printf("Test: Basic Worker...\n")
 
-  gob.Register(CenterCounter{})
-  gob.Register([]Vector{})
   // master ip & port
   f, err := os.Open("config.txt")
   if err != nil {
@@ -67,5 +73,5 @@ func TestBasicWorker(t *testing.T) {
   my_port := strings.Join([]string{":", strconv.Itoa(port)}, "")
   fmt.Printf("worker ip %s port %s\n", my_ip, my_port)
 
-  RunWorker(master_ip, master_port, my_ip, my_port, -1, []interface{}{MyStruct{}})
+  RunWorker(master_ip, master_port, my_ip, my_port, -1)
 }

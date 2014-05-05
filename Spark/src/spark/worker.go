@@ -10,6 +10,7 @@ import (
   "log"
   "sync"
   "reflect"
+  "time"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -18,6 +19,7 @@ type Worker struct {
   nRPC int
   nJobs int
   alive bool
+  lastRPC time.Time
 
   name string // e.g. "127.0.0.1"
   port string // e.g. ":1234"
@@ -199,7 +201,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    DPrintf("Map out %v", out)
+    //DPrintf("Map out %v", out)
     res.OK = true
 
   case HashPartJob:
@@ -225,7 +227,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // store to memory
     wk.mu.Lock()
     for i := 0; i < n; i++ {
-      DPrintf("Hash partition %d %v", i, out[i])
+      //DPrintf("Hash partition %d %v", i, out[i])
       wk.mem[args.OutputIDs[i].SplitID] = out[i]
     }
     wk.mu.Unlock()
@@ -268,7 +270,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         delete(kv, k)
       }
     }
-    DPrintf("Shuffled %v", kv)
+    //DPrintf("Shuffled %v", kv)
     out := make([]interface{}, len(kv)) // each line for one key
     i := 0
     for k, vl := range kv {
@@ -281,7 +283,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    DPrintf("Reduce out %v %v", args.OutputID, out)
+    //DPrintf("Reduce out %v %v", args.OutputID, out)
     res.OK = true
 
   default:
@@ -340,14 +342,25 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
   }
   wk.l = l
   wk.mem = make(map[string]([]interface{}))
+  wk.lastRPC = time.Now()
   Register(MasterAddress, MasterPort, me, port)
-  // TODO if idle for some time, register again
+
+  // if idle for some time, register again
+  go func() {
+    for wk.alive {
+      if time.Since(wk.lastRPC) > 10 * time.Second {
+        Register(MasterAddress, MasterPort, me, port)
+        time.Sleep(10 * time.Second)
+      }
+    }
+  }()
 
   // DON'T MODIFY CODE BELOW
   for wk.nRPC != 0 && wk.alive {
     conn, err := wk.l.Accept()
     if err == nil {
       wk.nRPC -= 1
+      wk.lastRPC = time.Now()
       go rpcs.ServeConn(conn)
       wk.nJobs += 1
     } else {

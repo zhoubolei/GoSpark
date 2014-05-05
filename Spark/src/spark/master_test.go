@@ -61,7 +61,7 @@ func TestBasicMaster(t *testing.T) {
 func TestMasterMRLineCount(t *testing.T) {
   fmt.Printf("Test: Master MapReduce Line Count...\n")
   mr := make_master(nil)
-  file := "hdfs://vision24.csail.mit.edu:54310/user/kmean_data.txt"
+  file := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv"
   nsplits := hadoop.GetSplitInfo(file).Len()
   workers := mr.WorkersAvailable()
   for len(workers) < 1 {

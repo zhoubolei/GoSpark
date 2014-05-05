@@ -10,6 +10,7 @@ import (
   "log"
   "sync"
   "reflect"
+  "time"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
@@ -18,6 +19,7 @@ type Worker struct {
   nRPC int
   nJobs int
   alive bool
+  lastRPC time.Time
 
   name string // e.g. "127.0.0.1"
   port string // e.g. ":1234"
@@ -38,6 +40,7 @@ func (wk *Worker) reduce_list(p *list.Element, data interface{}, fn reflect.Valu
     tail := wk.reduce_list(p.Next(), data, fn)
     // call function by name
     // convert to KeyValue before calling UserFunc
+    // because reflect doesn't support interface{} as arguments
     a1 := reflect.ValueOf(KeyValue{Value:head})
     a2 := reflect.ValueOf(KeyValue{Value:tail})
     a3 := reflect.ValueOf(KeyValue{Value:data})
@@ -86,43 +89,27 @@ func (wk *Worker) read_one_input(id string, ids []Split) ([]interface{}, bool, s
 
 // return (merged split content, all exist or not, the splits missing)
 func (wk *Worker) read_mult_inputs(ids []Split) ([]interface{}, bool, []string) {
-  everything := list.New()
-  missing := list.New()
+  everything := make([]interface{}, 0)
+  missing := make([]string, 0)
   success := true
   // try reading all the splits
   for _, id := range ids {
     arr, exist := wk.read_split(id.Hostname, id.SplitID)
     if !exist {
       success = false
-      missing.PushBack(id.SplitID)
+      missing = append(missing, id.SplitID)
     }
     if !success {
       continue
     }
     for _, line := range arr {
-      everything.PushBack(line)
+      everything = append(everything, line)
     }
   }
   if !success { // some splits missing, return their ids
-    // conver to array
-    n := missing.Len()
-    p := missing.Front()
-    arr := make([]string, n)
-    for i := 0; i < n; i++ {
-      arr[i] = p.Value.(string)
-      p = p.Next()
-    }
-    return nil, false, arr
+    return nil, false, missing
   } else { // all splits exist, return merged contents
-    // conver to array
-    n := everything.Len()
-    p := everything.Front()
-    arr := make([]interface{}, n)
-    for i := 0; i < n; i++ {
-      arr[i] = p.Value
-      p = p.Next()
-    }
-    return arr, true, nil
+    return everything, true, nil
   }
 }
 
@@ -137,31 +124,22 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   switch args.Operation {
   case ReadHDFSSplit:
     // read whole split from HDFS
-    lines := list.New()
+    lines := make([]interface{}, 0)
     scanner, err := hadoop.GetSplitScanner(args.HDFSFile, args.HDFSSplitID) // get the scanner of current split
     if err != nil {
       DPrintf("error reading file")
       res.OK = false
       return nil
     }
-    // peterkty: can use append to put into a slice directly other than push in list and copy to slice
     for scanner.Scan() {
-      lines.PushBack(scanner.Text()) // read one line of data in the split
-    }
-    // convert to array
-    n := lines.Len()
-    p := lines.Front()
-    arr := make([]interface{}, n)
-    for i := 0; i < n; i++ {
-      arr[i] = p.Value
-      p = p.Next()
+      lines = append(lines, scanner.Text()) // read one line of data in the split
     }
     // store to memory
     wk.mu.Lock()
-    wk.mem[args.OutputID] = arr
+    wk.mem[args.OutputID] = lines
     wk.mu.Unlock()
     // reply
-    res.Result = len(arr) // line count
+    res.Result = len(lines) // line count
     res.OK = true
 
   case HasSplit:
@@ -192,6 +170,14 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     res.OK = true
 
   case MapJob:
+    // look up function by name
+    fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
+    if !fn.IsValid() {
+      DPrintf("undefined")
+      res.OK = false
+      return nil
+    }
+    // prepare inputs
     arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
     if !exists {
       DPrintf("not found")
@@ -202,17 +188,9 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // perform mapper function on each line
     out := make([]interface{}, len(arr))
     for i, line := range arr {
-      // look up function by name
-      // peterkty: should put outside this loop, don't need to lookup the function every time
-      fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
-      if !fn.IsValid() {
-        DPrintf("undefined")
-        res.OK = false
-        return nil
-      }
       // call function by name
-      // peterkty: no need to convert to KeyValue, call it with line directly
       // convert to KeyValue before calling UserFunc
+      // because reflect doesn't support interface{} as arguments
       a1 := reflect.ValueOf(KeyValue{Value:line})
       a2 := reflect.ValueOf(KeyValue{Value:args.Data})
       r := fn.Call([]reflect.Value{a1, a2}) // TODO check function type
@@ -223,10 +201,48 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    DPrintf("Map out %v", out)
+    //DPrintf("Map out %v", out)
+    res.OK = true
+
+  case HashPartJob:
+    // prepare inputs
+    arr, exists, id := wk.read_one_input(args.InputID, args.InputIDs)
+    if !exists {
+      DPrintf("not found")
+      res.OK = false
+      res.NeedSplits = []string{id}
+      return nil
+    }
+    // perform hash partition on each line
+    n := len(args.OutputIDs)
+    out := make([]([]interface{}), n)
+    for i := 0; i < n; i++ {
+      out[i] = make([]interface{}, 0)
+    }
+    for _, line := range arr {
+      k := line.(KeyValue).Key
+      p := hash(k) % int64(n)
+      out[p] = append(out[p], line)
+    }
+    // store to memory
+    wk.mu.Lock()
+    for i := 0; i < n; i++ {
+      //DPrintf("Hash partition %d %v", i, out[i])
+      wk.mem[args.OutputIDs[i].SplitID] = out[i]
+    }
+    wk.mu.Unlock()
+    // reply
     res.OK = true
 
   case ReduceByKeyJob:
+    // look up function by name
+    fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
+    if !fn.IsValid() {
+      DPrintf("undefined")
+      res.OK = false
+      return nil
+    }
+    // prepare inputs
     kv := make(map[interface{}]*list.List) // key -> list of values
     lines, complete, missing := wk.read_mult_inputs(args.InputIDs)
     // some splits missing
@@ -247,7 +263,6 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         kv[k] = list.New()
       }
       kv[k].PushBack(v)
-      DPrintf("  read k %v v %v", k, v)
     }
     // perform reducer function
     for k, vl := range kv {
@@ -255,17 +270,10 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         delete(kv, k)
       }
     }
-    DPrintf("Shuffled %v", kv)
+    //DPrintf("Shuffled %v", kv)
     out := make([]interface{}, len(kv)) // each line for one key
     i := 0
     for k, vl := range kv {
-      // look up function by name
-      fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
-      if !fn.IsValid() {
-        DPrintf("undefined")
-        res.OK = false
-        return nil
-      }
       // perform reducer function on the list of values
       out[i] = KeyValue{Key:k, Value:wk.reduce_list(vl.Front(), args.Data, fn)}
       i++
@@ -275,7 +283,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mem[args.OutputID] = out
     wk.mu.Unlock()
     // reply
-    DPrintf("Reduce out %v %v", args.OutputID, out)
+    //DPrintf("Reduce out %v %v", args.OutputID, out)
     res.OK = true
 
   default:
@@ -334,14 +342,25 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
   }
   wk.l = l
   wk.mem = make(map[string]([]interface{}))
+  wk.lastRPC = time.Now()
   Register(MasterAddress, MasterPort, me, port)
-  // TODO if idle for some time, register again
+
+  // if idle for some time, register again
+  go func() {
+    for wk.alive {
+      if time.Since(wk.lastRPC) > 10 * time.Second {
+        Register(MasterAddress, MasterPort, me, port)
+        time.Sleep(10 * time.Second)
+      }
+    }
+  }()
 
   // DON'T MODIFY CODE BELOW
   for wk.nRPC != 0 && wk.alive {
     conn, err := wk.l.Accept()
     if err == nil {
       wk.nRPC -= 1
+      wk.lastRPC = time.Now()
       go rpcs.ServeConn(conn)
       wk.nJobs += 1
     } else {

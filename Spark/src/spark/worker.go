@@ -144,6 +144,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       res.OK = false
       return nil
     }
+    // peterkty: can use append to put into a slice directly other than push in list and copy to slice
     for scanner.Scan() {
       lines.PushBack(scanner.Text()) // read one line of data in the split
     }
@@ -202,6 +203,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     out := make([]interface{}, len(arr))
     for i, line := range arr {
       // look up function by name
+      // peterkty: should put outside this loop, don't need to lookup the function every time
       fn := reflect.ValueOf(&UserFunc{}).MethodByName(args.Function)
       if !fn.IsValid() {
         DPrintf("undefined")
@@ -209,6 +211,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
         return nil
       }
       // call function by name
+      // peterkty: no need to convert to KeyValue, call it with line directly
       // convert to KeyValue before calling UserFunc
       a1 := reflect.ValueOf(KeyValue{Value:line})
       a2 := reflect.ValueOf(KeyValue{Value:args.Data})

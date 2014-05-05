@@ -15,9 +15,9 @@ type Scheduler struct {
 
 // fake call function
 func Call(hostname string, fnName string, args *DoJobArgs, reply *DoJobReply) bool {
-  //return call(hostname, fnName, args, reply)
   DPrintf("Call(%v, %v, %v)\n", hostname, fnName, args)
-  reply.Result = []interface{} {Vector{1,1,1,1}, Vector{2,2,2,2}, Vector{3,3,3,3}}
+  return call(hostname, fnName, args, reply)
+  //reply.Result = []interface{} {Vector{1,1,1,1}, Vector{2,2,2,2}, Vector{3,3,3,3}}
   return true
 }
 
@@ -165,7 +165,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID};
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName};
 	  ok := Call(sIn.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  sOut.Hostname = sIn.Hostname

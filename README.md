@@ -48,12 +48,13 @@ Update master host name (and/or port number) in config.txt.
 On master machine, run:
 
 ```sh
-go test -run BasicMaster
+go test -run BasicMaster -timeout 0  # 0 for no timeout
+or
+go test -run KMeans -timeout 0 
 ```
 
 On worker machines, run:
 
 ```sh
-go test -run BasicWorker
+go test -run BasicWorker -timeout 0  
 ```
-

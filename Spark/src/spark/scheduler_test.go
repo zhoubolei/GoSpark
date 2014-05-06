@@ -166,7 +166,7 @@ func TestKMeans(t *testing.T) {
   gob.Register(CenterCounter{})
   gob.Register([]Vector{})
   
-  D := 4
+  D := 4096
   K := 3
   //MIN_DIST := 0.01
 
@@ -184,7 +184,7 @@ func TestKMeans(t *testing.T) {
   //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
   //pointsText := c.TextFile("hdfs://localhost:54310/user/hduser/testSplitRead.txt"); pointsText.name = "pointsText"
   
-  points := pointsText.Map("MapLineToFloatVector").Cache();  points.name = "points"
+  points := pointsText.Map("MapLineToFloatVectorCSV").Cache();  points.name = "points"
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
@@ -211,7 +211,7 @@ func xTestKMeansOneIter(t *testing.T) {
   gob.Register(CenterCounter{})
   gob.Register([]Vector{})
   
-  D := 4096
+  D := 4
   K := 3
   //MIN_DIST := 0.01
 

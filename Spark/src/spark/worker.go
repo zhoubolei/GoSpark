@@ -12,15 +12,17 @@ import (
   "time"
   "math/rand"
   "encoding/gob"
+  "syscall"
 )
 // each machine runs only one worker, which can do multiple job at the same time.
 
 type Worker struct { 
   l net.Listener
-  nRPC int
   nJobs int
-  alive bool
   lastRPC time.Time
+  alive bool
+  unreliable bool // randomly discard RPC requests or replies. for testing.
+  DoneChannel chan bool
 
   name string // e.g. "127.0.0.1"
   port string // e.g. ":1234"
@@ -486,7 +488,6 @@ func (wk *Worker) Shutdown(args *ShutdownArgs, res *ShutdownReply) error {
   DPrintf("Shutdown %s\n", wk.name)
   res.Njobs = wk.nJobs
   res.OK = true
-  wk.nRPC = 1   // OK, because the same thread reads nRPC
   wk.nJobs--   // Don't count the shutdown RPC
   wk.alive = false
   wk.l.Close()    // causes the Accept to fail
@@ -494,9 +495,9 @@ func (wk *Worker) Shutdown(args *ShutdownArgs, res *ShutdownReply) error {
 }
 
 // Tell the master we exist and ready to work
-func Register(masteraddr string, masterport string, myaddr string, myport string) {
+func (wk *Worker) register(masteraddr string, masterport string) {
   master := strings.Join([]string{masteraddr, masterport}, "")
-  me := strings.Join([]string{myaddr, myport}, "")
+  me := strings.Join([]string{wk.name, wk.port}, "")
   args := &RegisterArgs{}
   args.Worker = me
   var reply RegisterReply
@@ -506,53 +507,99 @@ func Register(masteraddr string, masterport string, myaddr string, myport string
   }
 }
 
+func (wk *Worker) start_wait_for_jobs() {
+  rpcs := rpc.NewServer()
+  rpcs.Register(wk)
+  l, e := net.Listen("tcp", wk.port)
+  if e != nil {
+    log.Fatal("RunWorker: worker ", wk.name, wk.port, " error: ", e)
+  }
+  wk.l = l
+
+  // now that we are listening on the worker address, can fork off
+  // accepting connections to another thread.
+  go func() {
+    for wk.alive {
+      conn, err := wk.l.Accept()
+      if err == nil && wk.alive {
+        if wk.unreliable && (rand.Int63() % 1000) < 100 {
+          // discard the request.
+          DPrintf("worker rpc: discard request")
+          conn.Close()
+        } else if wk.unreliable && (rand.Int63() % 1000) < 200 {
+          // process the request but force discard of reply.
+          DPrintf("worker rpc: process request but discard reply")
+          c1 := conn.(*net.TCPConn)
+          f, _ := c1.File()
+          err := syscall.Shutdown(int(f.Fd()), syscall.SHUT_WR)
+          if err != nil {
+            fmt.Printf("shutdown: %v\n", err)
+          }
+          wk.lastRPC = time.Now()
+          go rpcs.ServeConn(conn)
+          wk.nJobs += 1
+        } else {
+          // normal
+          wk.lastRPC = time.Now()
+          go rpcs.ServeConn(conn)
+          wk.nJobs += 1
+        }
+      } else if err == nil {
+        conn.Close()
+      }
+      if err != nil && wk.alive {
+        fmt.Printf("worker %s%s accept: %v\n", wk.name, wk.port, err.Error())
+        break
+      }
+    }
+    DPrintf("RunWorker %s%s exit\n", wk.name, wk.port)
+    wk.DoneChannel <- true
+  }()
+
+  DPrintf("worker: ready")
+}
+
 // Set up a connection with the master, register with the master,
 // and wait for jobs from the master
-func RunWorker(MasterAddress string, MasterPort string, me string, port string, nRPC int) {
+func MakeWorker(MasterAddress string, MasterPort string, me string, port string, unrel bool) *Worker {
   gob.Register(KeyValue{})
   gob.Register(Pair{})
   register_types() // register custom types
 
   DPrintf("RunWorker %s%s\n", me, port)
-  wk := new(Worker)
+  wk := Worker{}
 
   wk.name = me
   wk.port = port
-  wk.nRPC = nRPC
   wk.alive = true
-  rpcs := rpc.NewServer()
-  rpcs.Register(wk)
-  l, e := net.Listen("tcp", port)
-  if e != nil {
-    log.Fatal("RunWorker: worker ", me, port, " error: ", e)
-  }
-  wk.l = l
+  wk.unreliable = unrel
+  wk.DoneChannel = make(chan bool)
   wk.mem = make(map[string]([]interface{}))
   wk.lastRPC = time.Now()
-  Register(MasterAddress, MasterPort, me, port)
+
+  wk.start_wait_for_jobs()
+
+  wk.register(MasterAddress, MasterPort)
 
   // if idle for some time, register again
   // peterkty: do it faster as 100 * time.Millisecond
   go func() {
     for wk.alive {
       if time.Since(wk.lastRPC) > 100 * time.Millisecond {
-        Register(MasterAddress, MasterPort, me, port)
+        wk.register(MasterAddress, MasterPort)
         time.Sleep(100 * time.Millisecond)
       }
     }
   }()
 
-  // DON'T MODIFY CODE BELOW
-  for wk.nRPC != 0 && wk.alive {
-    conn, err := wk.l.Accept()
-    if err == nil {
-      wk.nRPC -= 1
-      wk.lastRPC = time.Now()
-      go rpcs.ServeConn(conn)
-      wk.nJobs += 1
-    } else {
-      break
-    }
+  return &wk
+}
+
+// tell the worker to shut itself down. for testing.
+func (wk *Worker) kill() {
+  DPrintf("worker killed")
+  wk.alive = false
+  if wk.l != nil {
+    wk.l.Close()
   }
-  DPrintf("RunWorker %s%s exit\n", me, port)
 }

@@ -48,8 +48,10 @@ Update master host name (and/or port number) in config.txt.
 On master machine, run:
 
 ```sh
-go test -run BasicMaster -timeout 1h  # 1h for 1hour
+go test -run MasterMRLineCount -timeout 1h  # 1h for 1hour
+```
 or
+```sh
 go test -run KMeans -timeout 1h 
 ```
 
@@ -58,6 +60,16 @@ On worker machines, run:
 ```sh
 go test -run BasicWorker -timeout 1h  
 ```
+or
+```sh
+go test -run WorkerRPCUnrel -timeout 1h  
+```
+where workers randomly discard RPC requests and replies, or
+```sh
+go test -run WorkerSuperUnrel -timeout 1h  
+```
+where workers not only have reliable RPC but also crash and reboot.
+
 
 Utility Shell
 --------

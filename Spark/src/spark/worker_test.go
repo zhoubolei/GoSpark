@@ -43,9 +43,8 @@ func (u *UserFunc) SumIntStruct(a KeyValue, b KeyValue) interface{} {
   return MyStruct{N:a.Value.(MyStruct).N + b.Value.(MyStruct).N}
 }
 
-func TestBasicWorker(t *testing.T) {
-  fmt.Printf("Test: Basic Worker...\n")
 
+func make_worker(unrel bool) *Worker{
   // master ip & port
   f, err := os.Open("config.txt")
   if err != nil {
@@ -73,5 +72,38 @@ func TestBasicWorker(t *testing.T) {
   my_port := strings.Join([]string{":", strconv.Itoa(port)}, "")
   fmt.Printf("worker ip %s port %s\n", my_ip, my_port)
 
-  RunWorker(master_ip, master_port, my_ip, my_port, -1)
+  return MakeWorker(master_ip, master_port, my_ip, my_port, unrel)
 }
+
+func TestBasicWorker(t *testing.T) {
+  fmt.Printf("Test: Basic Worker...\n")
+  wk := make_worker(false)
+  <-wk.DoneChannel
+}
+
+func TestWorkerRPCUnrel(t *testing.T) {
+  fmt.Printf("Test: Worker with Unreliable RPC...\n")
+  wk := make_worker(true)
+  <-wk.DoneChannel
+}
+
+func TestWorkerSuperUnrel(t *testing.T) {
+  fmt.Printf("Test: Worker with Unreliable RPC and Crash Reboot ...\n")
+  wk := make_worker(true)
+  for wk.alive {
+    // up for a random period of time
+    duration := rand.Intn(100)
+    for i := 0; i < duration; i++ {
+      time.Sleep(time.Second)
+      if !wk.alive {
+        break
+      }
+    }
+    // crash and reboot
+    if wk.alive {
+      wk.kill()
+      wk = make_worker(true)
+    }
+  }
+}
+

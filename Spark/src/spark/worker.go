@@ -582,7 +582,7 @@ func MakeWorker(MasterAddress string, MasterPort string, me string, port string,
   wk.register(MasterAddress, MasterPort)
 
   // if idle for some time, register again
-  // peterkty: do it faster as 100 * time.Millisecond
+  // peterkty: to see whether it is idle, we should also check if there are job running 
   go func() {
     for wk.alive {
       if time.Since(wk.lastRPC) > 100 * time.Millisecond {

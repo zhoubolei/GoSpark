@@ -44,8 +44,8 @@ func (f *UserFunc) MapLineToFloatVectorWithCat(line interface{}) interface{} {
 }
 
 // Format [PicIndex],[CategoryIndex],[feature1],[feature2],[feature3],[feature4],[feature5]...
-func (f *UserFunc) MapLineToCat(line interface{}) interface{} {
-  fieldTexts := strings.Fields(line.(KeyValue).Value.(string))
+func (f *UserFunc) MapLineToCatCSV(line interface{}) interface{} {
+  fieldTexts := strings.FieldsFunc(line.(KeyValue).Value.(string), func(c rune) bool { return c == ',' })
   
   return fieldTexts[1]
 }
@@ -123,7 +123,7 @@ func TestKMeans(t *testing.T) {
   // points (x,y) -> (index of the closest center, )
   
   var mappedPoints *RDD
-  for i := 0; i < 10; i++ {
+  for i := 0; i < 1; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
 	  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
@@ -136,7 +136,7 @@ func TestKMeans(t *testing.T) {
   }
   KmeansLabels := mappedPoints.Collect()
   
-  trueLabels := pointsText.Map("MapLineToCat");   trueLabels.name = "trueLabels"
+  trueLabels := pointsText.Map("MapLineToCatCSV");   trueLabels.name = "trueLabels"
   TrueLabels := trueLabels.Collect()
   
   fout, _ := os.Create("KmeansOutput-CompareLabels.txt")

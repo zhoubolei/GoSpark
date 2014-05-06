@@ -21,8 +21,8 @@ func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
   fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })
   
   vecs := make(Vector, len(fieldTexts)-1)
-  for i := range vecs[1:] {
-    vecs[i-1], _ = strconv.ParseFloat(fieldTexts[i-1], 64)
+  for i := range vecs {
+    vecs[i], _ = strconv.ParseFloat(fieldTexts[i+1], 64)
   }
   return vecs
 }
@@ -180,8 +180,8 @@ func TestKMeans(t *testing.T) {
   }
   fmt.Println(centers)
   
-  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")
-  pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv")
+  //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
   //pointsText := c.TextFile("hdfs://localhost:54310/user/hduser/testSplitRead.txt"); pointsText.name = "pointsText"
   
   points := pointsText.Map("MapLineToFloatVector").Cache();  points.name = "points"

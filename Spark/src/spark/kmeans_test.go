@@ -112,7 +112,7 @@ func TestKMeans(t *testing.T) {
     }
     centers[i] = center
   }
-  fmt.Println(centers)
+  //fmt.Println(centers)
   
   pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv")
   //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"

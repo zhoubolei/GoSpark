@@ -58,3 +58,14 @@ On worker machines, run:
 ```sh
 go test -run BasicWorker -timeout 1h  
 ```
+
+Utility Shell
+--------
+install tmux: sudo apt-get install tmux
+
+get into tmux, then run the sh
+```sh
+tmux
+cd shells
+./start-all.sh
+```

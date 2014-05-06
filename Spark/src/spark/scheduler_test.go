@@ -9,14 +9,14 @@ import (
   "encoding/gob"
 )
 
-func (f *UserFunc) MapLineToAnotherLine(line interface{}, userData interface{}) interface{} {
+func (f *UserFunc) MapLineToAnotherLine(line interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
   
   //return line.(string) + "aaaaaa"
   return line.(KeyValue).Value.(string) + "aaaaaa"
 }
 
-func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}, userData interface{}) interface{} {
+func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
   fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })
   
@@ -27,7 +27,7 @@ func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}, userData interface{
   return vecs
 }
 
-func (f *UserFunc) MapLineToFloatVector(line interface{}, userData interface{}) interface{} {
+func (f *UserFunc) MapLineToFloatVector(line interface{}) interface{} {
   fieldTexts := strings.Fields(line.(KeyValue).Value.(string))
   
   vecs := make(Vector, len(fieldTexts))
@@ -66,7 +66,7 @@ type VectorVector struct {
     Width int
 }
 
-func (f *UserFunc) AddCenterWCounter(x interface{}, y interface{}, userData interface{}) interface{} {
+func (f *UserFunc) AddCenterWCounter(x interface{}, y interface{}) interface{} {
   cc1 := x.(KeyValue).Value.(CenterCounter)
   cc2 := y.(KeyValue).Value.(CenterCounter)
   return CenterCounter{
@@ -75,7 +75,7 @@ func (f *UserFunc) AddCenterWCounter(x interface{}, y interface{}, userData inte
   }
 }
 
-func (f *UserFunc) AvgCenter(x interface{}, userData interface{}) interface{} {
+func (f *UserFunc) AvgCenter(x interface{}) interface{} {
   keyValue := x.(KeyValue).Value.(KeyValue)
   cc := keyValue.Value.(CenterCounter)
   return KeyValue{

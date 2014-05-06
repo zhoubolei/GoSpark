@@ -139,6 +139,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
   switch rdd.operationType {
   case HDFSFile:
 	  sOut := rdd.splits[SpInd]
+    if(sOut.Hostname != "") {  // should also send msg to check
+      return nil
+    }
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
 	  
@@ -155,10 +158,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	    }
 	    time.Sleep(10*time.Millisecond)
 	  }
-	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
 	  
 	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok") }
+	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
   //case MapWithData:
   
   case Map:
@@ -231,7 +234,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *(ss[i][SpInd]) }
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
-    args := DoJobArgs{Operation: ReduceByKey, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
+    args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
     ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
 	  

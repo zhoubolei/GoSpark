@@ -211,7 +211,7 @@ func xTestKMeansOneIter(t *testing.T) {
   gob.Register(CenterCounter{})
   gob.Register([]Vector{})
   
-  D := 4
+  D := 4096
   K := 3
   //MIN_DIST := 0.01
 

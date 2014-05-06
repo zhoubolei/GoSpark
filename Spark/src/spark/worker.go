@@ -532,11 +532,12 @@ func RunWorker(MasterAddress string, MasterPort string, me string, port string, 
   Register(MasterAddress, MasterPort, me, port)
 
   // if idle for some time, register again
+  // peterkty: do it faster as 100 * time.Millisecond
   go func() {
     for wk.alive {
-      if time.Since(wk.lastRPC) > 10 * time.Second {
+      if time.Since(wk.lastRPC) > 100 * time.Millisecond {
         Register(MasterAddress, MasterPort, me, port)
-        time.Sleep(10 * time.Second)
+        time.Sleep(100 * time.Millisecond)
       }
     }
   }()

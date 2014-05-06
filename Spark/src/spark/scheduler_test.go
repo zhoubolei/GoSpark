@@ -3,10 +3,6 @@ package spark
 import (
   "testing"
   "fmt"
-  "math/rand"
-  "strings"
-  "strconv"
-  "encoding/gob"
 )
 
 func (f *UserFunc) MapLineToAnotherLine(line interface{}) interface{} {
@@ -16,8 +12,6 @@ func (f *UserFunc) MapLineToAnotherLine(line interface{}) interface{} {
 
 
 func TestBasicMappingAndCollect(t *testing.T) {
-  gob.Register(CenterCounter{})
-  gob.Register(VectorVector{})
   c := NewContext("kmeans")
   defer c.Stop()
   

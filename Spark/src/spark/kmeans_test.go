@@ -7,6 +7,7 @@ import (
   "strings"
   "strconv"
   "encoding/gob"
+  "os"
 )
 
 // Format [PicIndex],[feature1],[feature2],[feature3],[feature4],[feature5]...
@@ -121,9 +122,10 @@ func TestKMeans(t *testing.T) {
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
   
+  var mappedPoints *RDD
   for i := 0; i < 10; i++ {
     fmt.Println("Iter:", i)
-	  mappedPoints := points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+	  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
 	  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
 		newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
 		newCentersCollected := newCenters.Collect()                 
@@ -137,7 +139,7 @@ func TestKMeans(t *testing.T) {
   trueLabels := pointsText.Map("MapLineToCat");   trueLabels.name = "trueLabels"
   TrueLabels := trueLabels.Collect()
   
-  fout, err := os.Create("KmeansOutput-CompareLabels.txt")
+  fout, _ := os.Create("KmeansOutput-CompareLabels.txt")
   defer fout.Close()
   for i := 0; i < len(KmeansLabels); i++ {
     fout.WriteString( fmt.Sprintf("%d %s\n", KmeansLabels[i].(KeyValue).Key.(int), TrueLabels[i]) ) 

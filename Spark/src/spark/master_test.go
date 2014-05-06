@@ -28,6 +28,21 @@ func make_master() *Master {
   return MakeMaster(master_ip, master_port)
 }
 
+// to add fault tolerance (worker temp RPC error) to master tests
+func get_first_worker(mr *Master) string {
+  workers := mr.WorkersAvailable()
+  for len(workers) < 1 {
+    time.Sleep(1 * time.Second)
+    workers = mr.WorkersAvailable()
+  }
+  var w string
+  for wk := range workers {
+    w = wk
+    break
+  }
+  return w
+}
+
 func TestBasicMaster(t *testing.T) {
   fmt.Printf("Test: Basic Master Line Count...\n")
   mr := make_master()
@@ -79,23 +94,35 @@ func TestMasterMRLineCount(t *testing.T) {
     read_out := strings.Join([]string{file, "read", strconv.Itoa(i)}, "-")
     read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:read_out}
     var read_reply DoJobReply
-    mr.AssignJob(w, &read_args, &read_reply)
+    for !mr.AssignJob(w, &read_args, &read_reply) { // if worker fails, roughly, wait for another available worker
+      w = get_first_worker(mr)
+    }
+
     // perform map
     map_out := strings.Join([]string{file, "map", strconv.Itoa(i)}, "-")
     map_args := DoJobArgs{Operation:MapJob, InputID:read_out, OutputID:map_out, Function:"LineCount"}
     var map_reply DoJobReply
-    mr.AssignJob(w, &map_args, &map_reply)
+    for !mr.AssignJob(w, &map_args, &map_reply) { // if worker fails, roughly, wait for another available worker
+      w = get_first_worker(mr)
+    }
+
     reduce_in[i] = Split{SplitID:map_out, Hostname:""}
   }
+
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
   reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
-  mr.AssignJob(w, &reduce_args, &reduce_reply)
+  for !mr.AssignJob(w, &reduce_args, &reduce_reply) { // if worker fails, roughly, wait for another available worker
+    w = get_first_worker(mr)
+  }
+
   // get result
   get_args := DoJobArgs{Operation:GetSplit, InputID:reduce_out}
   var get_reply DoJobReply
-  mr.AssignJob(w, &get_args, &get_reply)
+  for !mr.AssignJob(w, &get_args, &get_reply) { // if worker fails, roughly, wait for another available worker
+    w = get_first_worker(mr)
+  }
 
   mr.Shutdown()
   // TODO check
@@ -166,44 +193,44 @@ func TestMasterGetSplit(t *testing.T) {
 }
 
 func TestMasterMRCharCountStruct(t *testing.T) {
-// TODO let worker register new types
   fmt.Printf("Test: Master MapReduce Char Count with Custom Struct...\n")
   mr := make_master()
   file := "hdfs://vision24.csail.mit.edu:54310/user/kmean_data.txt"
   nsplits := hadoop.GetSplitInfo(file).Len()
-  workers := mr.WorkersAvailable()
-  for len(workers) < 1 {
-    time.Sleep(1 * time.Second)
-    workers = mr.WorkersAvailable()
-  }
-  var w string
-  for wk := range workers {
-    w = wk
-    break
-  }
+  w := get_first_worker(mr)
   reduce_in := make([]Split, nsplits)
   for i := 0; i < nsplits; i++ {
     // read from HDFS
     read_out := strings.Join([]string{file, "read", strconv.Itoa(i)}, "-")
     read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:read_out}
     var read_reply DoJobReply
-    mr.AssignJob(w, &read_args, &read_reply)
+    for !mr.AssignJob(w, &read_args, &read_reply) { // if worker fails, roughly, wait for another available worker
+      w = get_first_worker(mr)
+    }
     // perform map
     map_out := strings.Join([]string{file, "map", strconv.Itoa(i)}, "-")
     map_args := DoJobArgs{Operation:MapJob, InputID:read_out, OutputID:map_out, Function:"CharCountStruct"}
     var map_reply DoJobReply
-    mr.AssignJob(w, &map_args, &map_reply)
+    for !mr.AssignJob(w, &map_args, &map_reply) { // if worker fails, roughly, wait for another available worker
+      w = get_first_worker(mr)
+    }
     reduce_in[i] = Split{SplitID:map_out, Hostname:""}
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
   reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
   var reduce_reply DoJobReply
-  mr.AssignJob(w, &reduce_args, &reduce_reply)
+  for !mr.AssignJob(w, &reduce_args, &reduce_reply) { // if worker fails, roughly, wait for another available worker
+    w = get_first_worker(mr)
+  }
+
   // get result
   get_args := DoJobArgs{Operation:GetSplit, InputID:reduce_out}
   var get_reply DoJobReply
-  mr.AssignJob(w, &get_args, &get_reply)
+  for !mr.AssignJob(w, &get_args, &get_reply) { // if worker fails, roughly, wait for another available worker
+    w = get_first_worker(mr)
+  }
+
 
   mr.Shutdown()
   // TODO check

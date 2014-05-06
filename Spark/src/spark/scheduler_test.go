@@ -18,7 +18,7 @@ func (f *UserFunc) MapLineToAnotherLine(line interface{}) interface{} {
 
 func (f *UserFunc) MapLineToFloatVectorCSV(line interface{}) interface{} {
   //fieldTexts := strings.Fields(line.(string))
-  fieldTexts := strings.FieldsFunc(line.(string), func(c rune) bool { return c == ',' })
+  fieldTexts := strings.FieldsFunc(line.(KeyValue).Value.(string), func(c rune) bool { return c == ',' })
   
   vecs := make(Vector, len(fieldTexts)-1)
   for i := range vecs {

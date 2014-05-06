@@ -132,7 +132,7 @@ func TestKMeans(t *testing.T) {
 		for i:=0; i<len(newCentersCollected); i++ {
 		  centers[i] = *(newCentersCollected[i].(KeyValue).Value.(*Vector))
 		}
-    fmt.Printf("Round %v Centers: %v\n", i, centers)
+    //fmt.Printf("Round %v Centers: %v\n", i, centers)
   }
   KmeansLabels := mappedPoints.Collect()
   
@@ -140,9 +140,10 @@ func TestKMeans(t *testing.T) {
   TrueLabels := trueLabels.Collect()
   
   fout, _ := os.Create("KmeansOutput-CompareLabels.txt")
+  fmt.Printf("len(KmeansLabels) %v Centers: %v\n", len(KmeansLabels), len(TrueLabels))
   defer fout.Close()
   for i := 0; i < len(KmeansLabels); i++ {
-    fout.WriteString( fmt.Sprintf("%d %s\n", KmeansLabels[i].(KeyValue).Key.(int), TrueLabels[i]) ) 
+    fout.WriteString( fmt.Sprintf("%d %s\n", KmeansLabels[i].(KeyValue).Key.(int), TrueLabels[i].(string)) ) 
   }
 }
 

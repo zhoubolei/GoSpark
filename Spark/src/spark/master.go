@@ -71,8 +71,14 @@ func (mr *Master) KillWorkers() *list.List {
 
 
 func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
+  res.OK = true
+
   mr.mu.RLock()
-  if _, exist := mr.workers[args.Worker]; !exist {
+  if _, exist := mr.workers[args.Worker]; exist {
+    //DPrintf("Register: worker %s already here\n", args.Worker)
+    mr.mu.RUnlock()
+    return nil
+  } else {
     DPrintf("Register: worker %s\n", args.Worker)
   }
   mr.mu.RUnlock()
@@ -80,7 +86,6 @@ func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
   mr.mu.Lock()
   mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore}
   mr.mu.Unlock()
-  res.OK = true
   return nil
 }
 

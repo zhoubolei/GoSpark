@@ -20,6 +20,7 @@ type Worker struct {
   l net.Listener
   nJobs int
   lastRPC time.Time
+  running sync.WaitGroup
   alive bool
   unreliable bool // randomly discard RPC requests or replies. for testing.
   DoneChannel chan bool
@@ -155,6 +156,9 @@ func (wk *Worker) outputs_already_exist(id string, ids []Split) bool {
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
+
+  wk.running.Add(1)
+  defer wk.running.Done()
 
   res.Result = nil
   res.OK = false
@@ -582,9 +586,9 @@ func MakeWorker(MasterAddress string, MasterPort string, me string, port string,
   wk.register(MasterAddress, MasterPort)
 
   // if idle for some time, register again
-  // peterkty: to see whether it is idle, we should also check if there are job running 
   go func() {
     for wk.alive {
+      wk.running.Wait() // wait until idle, not running any job
       if time.Since(wk.lastRPC) > 100 * time.Millisecond {
         wk.register(MasterAddress, MasterPort)
         time.Sleep(100 * time.Millisecond)

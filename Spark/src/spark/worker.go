@@ -14,13 +14,23 @@ import (
   "encoding/gob"
   "syscall"
 )
+
+const (
+  RegisterInterval      = 100 * time.Millisecond
+  RegisterFailInterval  = time.Second
+  WaitLockInterval      = 10 * time.Millisecond
+  WorkloadInterval      = 5 * time.Second
+)
+
+
 // each machine runs only one worker, which can do multiple job at the same time.
 
 type Worker struct { 
   l net.Listener
   nJobs int
   lastRPC time.Time
-  running sync.WaitGroup
+  mu_run sync.RWMutex
+  running int
   alive bool
   unreliable bool // randomly discard RPC requests or replies. for testing.
   DoneChannel chan bool
@@ -153,12 +163,36 @@ func (wk *Worker) outputs_already_exist(id string, ids []Split) bool {
   return true
 }
 
+func (wk *Worker) cnt_inc() {
+  wk.mu_run.Lock()
+  wk.running++
+  wk.mu_run.Unlock()
+}
+
+func (wk *Worker) cnt_dec() {
+  wk.mu_run.Lock()
+  wk.running--
+  wk.mu_run.Unlock()
+}
+
+func (wk *Worker) cnt_get() int {
+  wk.mu_run.RLock()
+  defer wk.mu_run.RUnlock()
+  return wk.running
+}
+
+func (wk *Worker) cnt_wait() {
+  for wk.alive && wk.cnt_get() > 0 {
+    time.Sleep(WaitLockInterval)
+  }
+}
+
 // The master sent us a job
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
 
-  wk.running.Add(1)
-  defer wk.running.Done()
+  wk.cnt_inc()
+  defer wk.cnt_dec()
 
   res.Result = nil
   res.OK = false
@@ -499,7 +533,7 @@ func (wk *Worker) Shutdown(args *ShutdownArgs, res *ShutdownReply) error {
 }
 
 // Tell the master we exist and ready to work
-func (wk *Worker) register(masteraddr string, masterport string) {
+func (wk *Worker) register(masteraddr string, masterport string) bool {
   master := strings.Join([]string{masteraddr, masterport}, "")
   me := strings.Join([]string{wk.name, wk.port}, "")
   args := &RegisterArgs{}
@@ -508,7 +542,9 @@ func (wk *Worker) register(masteraddr string, masterport string) {
   ok := call(master, "Master.Register", args, &reply)
   if ok == false {
     fmt.Printf("Register: RPC %s register error\n", master)
+    return false
   }
+  return true
 }
 
 func (wk *Worker) start_wait_for_jobs() {
@@ -588,11 +624,27 @@ func MakeWorker(MasterAddress string, MasterPort string, me string, port string,
   // if idle for some time, register again
   go func() {
     for wk.alive {
-      wk.running.Wait() // wait until idle, not running any job
-      if time.Since(wk.lastRPC) > 100 * time.Millisecond {
-        wk.register(MasterAddress, MasterPort)
-        time.Sleep(100 * time.Millisecond)
+      wk.cnt_wait() // wait until truely idle, not running any job
+      if time.Since(wk.lastRPC) > RegisterInterval {
+        ok := wk.register(MasterAddress, MasterPort)
+        if ok {
+          time.Sleep(RegisterInterval)
+        } else {
+          time.Sleep(RegisterFailInterval)
+        }
       }
+    }
+  }()
+
+  // tick, print number of jobs running
+  go func() {
+    for wk.alive {
+      time.Sleep(WorkloadInterval)
+      load := wk.cnt_get()
+      for i := 0; i < load; i++ {
+        fmt.Printf(".")
+      }
+      fmt.Printf("\n")
     }
   }()
 

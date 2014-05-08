@@ -21,6 +21,8 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 type WorkerInfo struct {
   address string // addr:port of the worker, e.g. "127.0.0.1:1234"
   nCore int      // TODO implement worker threads
+  running int // number of jobs currently running
+  memUse uint64 // amount of memory currently using
 }
 
 type Master struct {
@@ -71,20 +73,12 @@ func (mr *Master) KillWorkers() *list.List {
 
 
 func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
+  DPrintf("Register: %v", args)
   res.OK = true
 
-  mr.mu.RLock()
-  if _, exist := mr.workers[args.Worker]; exist {
-    //DPrintf("Register: worker %s already here\n", args.Worker)
-    mr.mu.RUnlock()
-    return nil
-  } else {
-    DPrintf("Register: worker %s\n", args.Worker)
-  }
-  mr.mu.RUnlock()
-
+  // update worker information
   mr.mu.Lock()
-  mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore}
+  mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore, running:args.Running, memUse:args.MemUse}
   mr.mu.Unlock()
   return nil
 }

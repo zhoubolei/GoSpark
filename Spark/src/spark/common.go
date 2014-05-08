@@ -40,6 +40,7 @@ const (
   ReadHDFSSplit   = "ReadHDFSSplit"
   HasSplit        = "HasSplit"
   GetSplit        = "GetSplit"
+  DelSplit        = "DelSplit"
   Count           = "Count"
   MapJob          = "MapJob"
   FlatMapJob      = "FlatMapJob"
@@ -75,6 +76,8 @@ type JobType string
 type RegisterArgs struct {
   Worker string
   NCore int
+  Running int
+  MemUse uint64
 }
 
 type RegisterReply struct {

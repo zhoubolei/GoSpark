@@ -7,6 +7,7 @@ import (
   "log"
   "sync"
   "encoding/gob"
+  "time"
 )
 
 const Debug=0
@@ -132,8 +133,15 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
 
 func (mr *Master) AssignJob(w string, args *DoJobArgs, reply *DoJobReply) bool {
   ok := call(w, "Worker.DoJob", args, reply)
-  if ok == false { // RPC fails, need to assign current job to another worker
-    DPrintf("RPC failed")
+  trial := 0
+  for !ok && trial < 10 {
+    DPrintf("RPC failed, try again")
+    time.Sleep(time.Second)
+    ok = call(w, "Worker.DoJob", args, reply)
+    trial++
+  }
+  if !ok { // RPC fails, need to assign current job to another worker
+    DPrintf("worker %s connection lost", w)
     mr.mu.Lock()
     delete(mr.workers, w) // remove from workers pool
     mr.mu.Unlock()

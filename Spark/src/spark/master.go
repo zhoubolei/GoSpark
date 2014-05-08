@@ -10,15 +10,6 @@ import (
   "time"
 )
 
-const Debug=0
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-  if Debug > 0 {
-    log.Printf(format, a...)
-  }
-  return
-}
-
 type WorkerInfo struct {
   address string // addr:port of the worker, e.g. "127.0.0.1:1234"
   nCore int      // TODO implement worker threads

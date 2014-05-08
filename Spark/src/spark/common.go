@@ -2,6 +2,8 @@ package spark
 
 import (
   "fmt"
+  "log"
+  "flag"
   "net/rpc"
   "encoding/gob"
   "math/big"
@@ -10,6 +12,15 @@ import (
   "bytes"
   "strconv"
 )
+
+var Debug = flag.Bool("debug", false, "spark debug mode")
+
+func DPrintf(format string, a ...interface{}) (n int, err error) {
+  if *Debug {
+    log.Printf(format, a...)
+  }
+  return
+}
 
 func nrand() string {
   max := big.NewInt(int64(1) << 62)

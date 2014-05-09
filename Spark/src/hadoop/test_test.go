@@ -32,10 +32,14 @@ func TestBasicRead(t *testing.T) {
 	    fmt.Println();
 	}
     
-  scanner, _ := GetSplitScanner(fileURI, 0); // get the scanner of split 0
-    
-  for scanner.Scan() {
-		fmt.Println(scanner.Text()) // read one line of data in split
+  scanner, err := GetSplitScanner(fileURI, 0); // get the scanner of split 0
+  
+  if err == nil {
+	  for scanner.Scan() {
+			fmt.Println(scanner.Text()) // read one line of data in split
+		}
+	} else {
+	  fmt.Println(err)
 	}
 }
 

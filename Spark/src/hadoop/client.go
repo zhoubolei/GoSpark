@@ -7,6 +7,7 @@ import "container/list"
 import "strings"
 import "unicode"
 import "strconv"
+import "fmt"
 
 func GetSplitScanner(fileURI string, splitInd int) (* bufio.Scanner, error) {
 	cmd := exec.Command("java", "HDFSSplitReaderStable", fileURI, strconv.Itoa(splitInd))
@@ -20,8 +21,15 @@ func GetSplitScanner(fileURI string, splitInd int) (* bufio.Scanner, error) {
 		log.Println(err)
     return nil, err
 	}
-    scanner := bufio.NewScanner(stdout)
-    return scanner, nil
+  scanner := bufio.NewScanner(stdout)
+  if scanner.Scan() {
+    if scanner.Text() != "1" {
+      return nil, fmt.Errorf("HDFS read fileURI:%v splitInd:%v error", fileURI, splitInd)
+    }
+  } else {
+    return nil, fmt.Errorf("HDFS read fileURI:%v splitInd:%v error", fileURI, splitInd)
+  }
+  return scanner, nil
 }
 
 
@@ -29,6 +37,8 @@ func GetSplitScanner(fileURI string, splitInd int) (* bufio.Scanner, error) {
 func GetSplitInfo(fileURI string) (*list.List) {
 	cmd := exec.Command("java", "HDFSGetSplitInfo", fileURI)
 	stdout, err := cmd.StdoutPipe()
+  
+  
   
 	if err != nil {
 		log.Fatal(err)

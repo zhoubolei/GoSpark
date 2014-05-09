@@ -25,7 +25,6 @@ public class HDFSSplitReaderStable {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		System.setOut(new PrintStream(baos));
 		
-		//int nsplit = Integer.parseInt(args[2]);
 		int splitind = Integer.parseInt(args[1]);
 		String filename = args[0];
 		
@@ -44,6 +43,7 @@ public class HDFSSplitReaderStable {
 	    
 
 		System.setOut(std);
+	    System.out.println("1");
 	    while(recordReader.next(key, value)) {
 	      System.out.println(value.toString());
 	    }

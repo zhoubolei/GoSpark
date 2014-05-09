@@ -315,7 +315,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	         
 	    ok := Call(s.Hostname, "Worker.DoJob", &args, &reply)
 	    if !ok {
-        log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n", s)
+        log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n", i)
       }
       ret = append(ret, reply.Lines)  // append one slice to another : add ...
 	  }

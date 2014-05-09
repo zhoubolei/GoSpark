@@ -136,6 +136,7 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
   return mr.workers
 }
 
+// peterkty: need to use nCore to assign nCore jobs to this worker
 func (mr *Master) AssignJob(w string, args *DoJobArgs, reply *DoJobReply) bool {
   ok := call(w, "Worker.DoJob", args, reply)
   if ok == false { // RPC fails, need to assign current job to another worker

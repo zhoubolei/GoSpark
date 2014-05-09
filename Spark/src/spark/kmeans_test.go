@@ -33,10 +33,10 @@ func (f *UserFunc) MapLineToFloatVector(line interface{}) interface{} {
 }
 
 // Format [PicIndex],[CategoryIndex],[feature1],[feature2],[feature3],[feature4],[feature5]...
-func (f *UserFunc) MapLineToFloatVectorWithCat(line interface{}) interface{} {
-  fieldTexts := strings.Fields(line.(KeyValue).Value.(string))
+func (f *UserFunc) MapLineToFloatVectorCSVWithCat(line interface{}) interface{} {
+  fieldTexts := strings.FieldsFunc(line.(KeyValue).Value.(string), func(c rune) bool { return c == ',' })
   
-  vecs := make(Vector, len(fieldTexts))
+  vecs := make(Vector, len(fieldTexts)-2)
   for i := range vecs {
     vecs[i], _ = strconv.ParseFloat(fieldTexts[i+2], 64)
   }
@@ -92,6 +92,12 @@ func (f *UserFunc) AvgCenter(x interface{}) interface{} {
   }
 }
 
+func min(x, y int) int{
+  if x < y {
+    return x
+  }
+  return y
+}
 
 func TestKMeans(t *testing.T) {
   c := NewContext("kmeans")
@@ -101,7 +107,8 @@ func TestKMeans(t *testing.T) {
   gob.Register([]Vector{})
   
   D := 4096
-  K := 397
+  DD := min(10,D)  // get first few elements to print out
+  K := 3
   //MIN_DIST := 0.01
 
   centers := make([]Vector, K)
@@ -114,9 +121,70 @@ func TestKMeans(t *testing.T) {
   }
   //fmt.Println(centers)
   
-  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv")
+  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv")
   //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   
+  // run one kmeans iteration
+  // points (x,y) -> (index of the closest center, )
+  
+  var mappedPoints *RDD
+  for i := 0; i < 3; i++ {
+    fmt.Println("Iter:", i)
+	  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+	  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  
+		newCenters := sumCenters.Map("AvgCenter")                   ; newCenters.name = "newCenters"  
+		newCentersCollected := newCenters.Collect()                 
+		for j:=0; j<len(newCentersCollected); j++ {
+		  centers[j] = *(newCentersCollected[j].(KeyValue).Value.(*Vector))
+		}
+    fmt.Printf("Round %v Centers: \n", i)
+    for j:=0; j<len(newCentersCollected); j++ {
+      fmt.Printf("{%v}\n", centers[j][0:DD])
+    }
+  }
+  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
+  KmeansLabels := mappedPoints.Collect()
+  
+  trueLabels := pointsText.Map("MapLineToCatCSV");   trueLabels.name = "trueLabels"
+  TrueLabels := trueLabels.Collect()
+  
+  fout, _ := os.Create("KmeansOutput-CompareLabels.txt")
+  // bug: len(KmeansLabels) is zero
+  fmt.Printf("len(KmeansLabels) %v Centers: %v\n", len(KmeansLabels) , len(TrueLabels))
+  defer fout.Close()
+  for i := 0; i < len(KmeansLabels); i++ {
+    fout.WriteString( fmt.Sprintf("%d %s\n", KmeansLabels[i].(KeyValue).Key.(int), TrueLabels[i].(string)) ) 
+  }
+}
+
+
+
+func xTestKMeansSteps(t *testing.T) {
+  c := NewContext("kmeans")
+  defer c.Stop()
+  
+  gob.Register(CenterCounter{})
+  gob.Register([]Vector{})
+  
+  D := 10
+  K := 3
+  //MIN_DIST := 0.01
+
+  centers := make([]Vector, K)
+  for i := range centers {
+    center := make(Vector, D)
+    for j := range center {
+      center[j] = rand.Float64()
+    }
+    centers[i] = center
+  }
+  //fmt.Println(centers)
+  
+  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv")
+  //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine_small.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   
   // run one kmeans iteration
@@ -132,22 +200,25 @@ func TestKMeans(t *testing.T) {
 		for i:=0; i<len(newCentersCollected); i++ {
 		  centers[i] = *(newCentersCollected[i].(KeyValue).Value.(*Vector))
 		}
-    //fmt.Printf("Round %v Centers: %v\n", i, centers)
+    fmt.Printf("Round %v Centers: %v\n", i, centers)
   }
+  MappedPoints := points.Collect()
+  fmt.Printf("len(MappedPoints) %v\n", len(MappedPoints) )
+  
+  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
   KmeansLabels := mappedPoints.Collect()
   
   trueLabels := pointsText.Map("MapLineToCatCSV");   trueLabels.name = "trueLabels"
   TrueLabels := trueLabels.Collect()
   
   fout, _ := os.Create("KmeansOutput-CompareLabels.txt")
-  fmt.Printf("len(KmeansLabels) %v Centers: %v\n", len(KmeansLabels), len(TrueLabels))
+  // bug: len(KmeansLabels) is zero
+  fmt.Printf("len(KmeansLabels) %v Centers: %v\n", len(KmeansLabels) , len(TrueLabels))
   defer fout.Close()
   for i := 0; i < len(KmeansLabels); i++ {
     fout.WriteString( fmt.Sprintf("%d %s\n", KmeansLabels[i].(KeyValue).Key.(int), TrueLabels[i].(string)) ) 
   }
 }
-
-
 
 
 

@@ -192,6 +192,7 @@ func (wk *Worker) cnt_wait() {
 func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
   DPrintf("worker %s%s DoJob %v", wk.name, wk.port, args)
 
+  start := time.Now()
   wk.cnt_inc()
   defer wk.cnt_dec()
 
@@ -205,6 +206,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, nil) {
       DPrintf("output already exists")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // read whole split from HDFS
@@ -213,6 +215,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if err != nil {
       DPrintf("error reading file")
       res.OK = false
+      res.Latency = time.Since(start)
       return nil
     }
     for scanner.Scan() {
@@ -225,11 +228,13 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     // reply
     res.Result = len(lines) // line count
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == HasSplit {
 
     _, res.Result, _ = wk.read_one_input(args.InputID, args.InputIDs)
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == GetSplit {
 
@@ -239,11 +244,13 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       DPrintf("not found")
       res.OK = false
       res.NeedSplits = []string{id}
+      res.Latency = time.Since(start)
       return nil
     }
     DPrintf("GetSplit read %v %v", args.InputID, arr)
     res.Lines = arr // split content
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == DelSplit {
 
@@ -251,7 +258,9 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Lock()
     delete(wk.mem, args.InputID)
     wk.mu.Unlock()
+    // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == Count {
 
@@ -260,10 +269,12 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       DPrintf("not found")
       res.OK = false
       res.NeedSplits = []string{id}
+      res.Latency = time.Since(start)
       return nil
     }
     res.Result = len(arr) // line count
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == MapJob || args.Operation == FlatMapJob || args.Operation == MapValuesJob || args.Operation == FilterJob {
 
@@ -271,6 +282,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, nil) {
       DPrintf("output already exists")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // look up function by name
@@ -278,6 +290,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if !fn.IsValid() {
       DPrintf("undefined")
       res.OK = false
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -286,6 +299,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       DPrintf("not found")
       res.OK = false
       res.NeedSplits = []string{id}
+      res.Latency = time.Since(start)
       return nil
     }
     // perform mapper function on each line
@@ -334,6 +348,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Unlock()
     // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == SampleJob {
 
@@ -341,6 +356,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, nil) {
       DPrintf("output already exists")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -349,6 +365,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       DPrintf("not found")
       res.OK = false
       res.NeedSplits = []string{id}
+      res.Latency = time.Since(start)
       return nil
     }
     // perform random sample
@@ -365,6 +382,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Unlock()
     // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == HashPartJob {
 
@@ -372,6 +390,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, args.OutputIDs) {
       DPrintf("outputs already exist")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -380,6 +399,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       DPrintf("not found")
       res.OK = false
       res.NeedSplits = []string{id}
+      res.Latency = time.Since(start)
       return nil
     }
     // perform hash partition on each line
@@ -402,6 +422,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Unlock()
     // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == ReduceJob {
 
@@ -410,6 +431,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if !fn.IsValid() {
       DPrintf("undefined")
       res.OK = false
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -420,12 +442,14 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       // reply
       res.OK = false
       res.NeedSplits = missing
+      res.Latency = time.Since(start)
       return nil
     }
     // all splits present
     // perform reducer function
     res.Result = wk.reduce_slice(lines, args.Data, fn) // reduce to one result
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == ReduceByKeyJob {
 
@@ -433,6 +457,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, nil) {
       DPrintf("output already exists")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // look up function by name
@@ -440,6 +465,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if !fn.IsValid() {
       DPrintf("undefined")
       res.OK = false
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -450,6 +476,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       // reply
       res.OK = false
       res.NeedSplits = missing
+      res.Latency = time.Since(start)
       return nil
     }
     // all splits present
@@ -478,6 +505,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Unlock()
     // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else if args.Operation == JoinJob {
 
@@ -485,6 +513,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     if wk.outputs_already_exist(args.OutputID, nil) {
       DPrintf("output already exists")
       res.OK = true
+      res.Latency = time.Since(start)
       return nil
     }
     // prepare inputs
@@ -496,6 +525,7 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
       // reply
       res.OK = false
       res.NeedSplits = append(m1, m2...)
+      res.Latency = time.Since(start)
       return nil
     }
     // all splits present
@@ -515,16 +545,16 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     wk.mu.Unlock()
     // reply
     res.OK = true
+    res.Latency = time.Since(start)
 
   } else {
 
     DPrintf("unknown job: %s", args.Operation)
     res.OK = false
+    res.Latency = time.Since(start)
     return nil
 
   }
-
-  DPrintf("success reply %v", res)
 
   return nil
 }

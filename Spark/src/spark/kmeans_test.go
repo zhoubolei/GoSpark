@@ -139,7 +139,7 @@ func TestKMeans(t *testing.T) {
 		  centers[j] = *(newCentersCollected[j].(KeyValue).Value.(*Vector))
 		}
     fmt.Printf("Round %v Centers: \n", i)
-    for j:=0; j<len(newCentersCollected); j++ {
+    for j:=0; j<min(len(newCentersCollected),10); j++ {
       fmt.Printf("{%v}\n", centers[j][0:DD])
     }
   }

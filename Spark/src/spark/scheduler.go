@@ -154,16 +154,15 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	    addressHDFS := serverList[sid]
 	    addressWorkerInMaster = d.findServerAddress(addressHDFS)
 	    if (addressWorkerInMaster != ""){
-	      break
+			  ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
+			  if(!ok) { 
+			    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
+			  } else {
+			    done = true
+			    break
+			  }
 	    }
 	    time.Sleep(10*time.Millisecond)
-		  ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
-		  if(!ok) { 
-		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
-		  } else {
-		    done = true
-		    break
-		  }
 	  }
 		  
 	  //}

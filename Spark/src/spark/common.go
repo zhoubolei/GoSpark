@@ -11,6 +11,7 @@ import (
   "crypto/md5"
   "bytes"
   "strconv"
+  "time"
 )
 
 var Debug = flag.Bool("debug", false, "spark debug mode")
@@ -132,6 +133,7 @@ type DoJobReply struct {
   Lines []interface{}
   OK bool
   NeedSplits []string
+  Latency time.Duration
 }
 
 // sends an RPC

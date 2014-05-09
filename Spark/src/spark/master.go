@@ -65,7 +65,7 @@ func (mr *Master) KillWorkers() *list.List {
 
 
 func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
-  DPrintf("Register: %v", args)
+  //DPrintf("Register: %v", args)
   res.OK = true
 
   // update worker information
@@ -113,13 +113,16 @@ func (mr *Master) StartRegistrationServer() {
   DPrintf("RegistrationServer: ready")
 }
 
-// peterkty:
-// because mr.workers is a map, so the returned map is the of same pointer to what master have.
-// so some concurrency issue may happen. Better manually do a deep copy of mr.workers and return that copy.
 func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
   mr.mu.RLock()
   defer mr.mu.RUnlock()
-  return mr.workers
+  // because mr.workers is a map, so the returned map is the of same pointer to what master have.
+  // so some concurrency issue may happen. Better manually do a deep copy of mr.workers and return that copy.
+  m := make(map[string]WorkerInfo)
+  for w, i := range mr.workers {
+    m[w] = i
+  }
+  return m
 }
 
 // peterkty: need to use nCore to assign nCore jobs to this worker

@@ -152,7 +152,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  }
 	  
 	  ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok") }
+	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) }
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
   //case MapWithData:
   
@@ -162,7 +162,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
 	  ok := d.master.AssignJob(sIn.Hostname, &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
+	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname) }
 	  sOut.Hostname = sIn.Hostname
 	  
 	  
@@ -201,7 +201,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			  
 			    reply := DoJobReply{}
 			    ok := d.master.AssignJob(rdd.prevRDD1.splits[i].Hostname, &args, &reply)
-	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
+	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, rdd.prevRDD1.splits[i].Hostname)  }
 	        
 			    for j:=0; j<nRed; j++ { 
             (*(ss[i][j])).Hostname = rdd.prevRDD1.splits[i].Hostname			      
@@ -228,7 +228,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
     args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
     ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok") }
+	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  }
 	  
 	 
   }
@@ -307,7 +307,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	         
 	    ok := d.master.AssignJob(s.Hostname, &args, &reply)
 	    if !ok {
-        log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n", i)
+        log.Printf("In Scheduler.computeRDD, Split=%v, => rerun\n",s)
       }
       ret = append(ret, reply.Lines)  // append one slice to another : add ...
 	  }

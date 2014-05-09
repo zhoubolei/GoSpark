@@ -108,7 +108,7 @@ func TestKMeans(t *testing.T) {
   
   D := 4096
   DD := min(10,D)  // get first few elements to print out
-  K := 3
+  K := 397
   //MIN_DIST := 0.01
 
   centers := make([]Vector, K)
@@ -121,16 +121,15 @@ func TestKMeans(t *testing.T) {
   }
   //fmt.Println(centers)
   
-  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv")
-  //pointsText := c.TextFile("hdfs://localhost:54310/user/kmean_data.txt"); pointsText.name = "pointsText"
-  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )
   
   var mappedPoints *RDD
-  for i := 0; i < 3; i++ {
+  for i := 0; i < 10; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
 	  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  

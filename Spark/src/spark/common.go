@@ -44,6 +44,11 @@ func hash(v interface{}) int64 {
     sum *= 256
     sum += int64(x)
   }
+  // peterkty this sum may be negative
+  if(sum < 0){
+    sum = -sum
+  }
+    
   return sum
 }
 

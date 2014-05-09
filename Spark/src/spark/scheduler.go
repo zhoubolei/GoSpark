@@ -140,19 +140,43 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
 	  DPrintf("len(sinfo) = %d\n", len(sinfo))
 	  serverList := sinfo[SpInd]
+	  
+	  
 	  addressWorkerInMaster := ""
-	  for {
-	    sid   := rand.Int() % len(serverList)  // randomly pick one
-	    addressHDFS := serverList[sid]
-	    addressWorkerInMaster = d.findServerAddress(addressHDFS)
-	    if (addressWorkerInMaster != ""){
-	      break
-	    }
-	    time.Sleep(10*time.Millisecond)
+	  
+	  done := false
+	  // First try the ones with this split
+	  for i:= 0; i<10; i++ {
+		  for {
+		    sid   := rand.Int() % len(serverList)  // randomly pick one
+		    addressHDFS := serverList[sid]
+		    addressWorkerInMaster = d.findServerAddress(addressHDFS)
+		    if (addressWorkerInMaster != ""){
+		      break
+		    }
+		    time.Sleep(10*time.Millisecond)
+		  }
+		  
+		  ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
+		  if(!ok) { 
+		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
+		  } else {
+		    done = true
+		    break
+		  }
 	  }
 	  
-	  ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) }
+	  for !done {
+	    addressWorkerInMaster = randomWorkerFromMap(d.master.WorkersAvailable())
+	    ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
+		  if(!ok) { 
+		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
+		  } else {
+		    done = true
+		    break
+		  }
+	  }
+	  
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
   //case MapWithData:
   

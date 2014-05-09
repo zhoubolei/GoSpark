@@ -2,6 +2,8 @@ package spark
 
 import (
   "fmt"
+  "log"
+  "flag"
   "net/rpc"
   "encoding/gob"
   "math/big"
@@ -10,6 +12,15 @@ import (
   "bytes"
   "strconv"
 )
+
+var Debug = flag.Bool("debug", false, "spark debug mode")
+
+func DPrintf(format string, a ...interface{}) (n int, err error) {
+  if *Debug {
+    log.Printf(format, a...)
+  }
+  return
+}
 
 func nrand() string {
   max := big.NewInt(int64(1) << 62)
@@ -40,6 +51,7 @@ const (
   ReadHDFSSplit   = "ReadHDFSSplit"
   HasSplit        = "HasSplit"
   GetSplit        = "GetSplit"
+  DelSplit        = "DelSplit"
   Count           = "Count"
   MapJob          = "MapJob"
   FlatMapJob      = "FlatMapJob"
@@ -75,6 +87,8 @@ type JobType string
 type RegisterArgs struct {
   Worker string
   NCore int
+  Running int
+  MemUse uint64
 }
 
 type RegisterReply struct {

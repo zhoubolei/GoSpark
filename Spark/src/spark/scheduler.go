@@ -13,14 +13,6 @@ type Scheduler struct {
     master *Master
 } 
 
-// fake call function
-func Call(hostname string, fnName string, args *DoJobArgs, reply *DoJobReply) bool {
-  DPrintf("Call(%v, %v, %v)\n", hostname, fnName, args)
-  return call(hostname, fnName, args, reply)
-  //reply.Result = []interface{} {Vector{1,1,1,1}, Vector{2,2,2,2}, Vector{3,3,3,3}}
-  return true
-}
-
 type Node struct{
   rdd       *RDD
   processed bool
@@ -159,7 +151,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	    time.Sleep(10*time.Millisecond)
 	  }
 	  
-	  ok := Call(addressWorkerInMaster, "Worker.DoJob", &args, &reply)
+	  ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit HDFSFile not ok") }
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
   //case MapWithData:
@@ -169,7 +161,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
-	  ok := Call(sIn.Hostname, "Worker.DoJob", &args, &reply)
+	  ok := d.master.AssignJob(sIn.Hostname, &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok") }
 	  sOut.Hostname = sIn.Hostname
 	  
@@ -208,7 +200,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			    args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
 			  
 			    reply := DoJobReply{}
-			    ok := Call(rdd.prevRDD1.splits[i].Hostname, "Worker.DoJob", &args, &reply)
+			    ok := d.master.AssignJob(rdd.prevRDD1.splits[i].Hostname, &args, &reply)
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok") }
 	        
 			    for j:=0; j<nRed; j++ { 
@@ -313,7 +305,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	    reply := DoJobReply{}
 	    args := DoJobArgs{Operation: "GetSplit", InputID: s.SplitID};
 	         
-	    ok := Call(s.Hostname, "Worker.DoJob", &args, &reply)
+	    ok := d.master.AssignJob(s.Hostname, &args, &reply)
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split%d, => rerun\n", i)
       }

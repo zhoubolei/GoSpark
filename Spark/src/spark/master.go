@@ -7,20 +7,14 @@ import (
   "log"
   "sync"
   "encoding/gob"
+  "time"
 )
-
-const Debug=0
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-  if Debug > 0 {
-    log.Printf(format, a...)
-  }
-  return
-}
 
 type WorkerInfo struct {
   address string // addr:port of the worker, e.g. "127.0.0.1:1234"
   nCore int      // TODO implement worker threads
+  running int // number of jobs currently running
+  memUse uint64 // amount of memory currently using
 }
 
 type Master struct {
@@ -71,20 +65,12 @@ func (mr *Master) KillWorkers() *list.List {
 
 
 func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
+  DPrintf("Register: %v", args)
   res.OK = true
 
-  mr.mu.RLock()
-  if _, exist := mr.workers[args.Worker]; exist {
-    //DPrintf("Register: worker %s already here\n", args.Worker)
-    mr.mu.RUnlock()
-    return nil
-  } else {
-    DPrintf("Register: worker %s\n", args.Worker)
-  }
-  mr.mu.RUnlock()
-
+  // update worker information
   mr.mu.Lock()
-  mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore}
+  mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore, running:args.Running, memUse:args.MemUse}
   mr.mu.Unlock()
   return nil
 }
@@ -139,8 +125,15 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
 // peterkty: need to use nCore to assign nCore jobs to this worker
 func (mr *Master) AssignJob(w string, args *DoJobArgs, reply *DoJobReply) bool {
   ok := call(w, "Worker.DoJob", args, reply)
-  if ok == false { // RPC fails, need to assign current job to another worker
-    DPrintf("RPC failed")
+  trial := 0
+  for !ok && trial < 10 {
+    DPrintf("RPC failed, try again")
+    time.Sleep(time.Second)
+    ok = call(w, "Worker.DoJob", args, reply)
+    trial++
+  }
+  if !ok { // RPC fails, need to assign current job to another worker
+    DPrintf("worker %s connection lost", w)
     mr.mu.Lock()
     delete(mr.workers, w) // remove from workers pool
     mr.mu.Unlock()

@@ -13,11 +13,12 @@ import (
   "math/rand"
   "encoding/gob"
   "syscall"
+  "runtime"
 )
 
 const (
-  RegisterInterval      = 100 * time.Millisecond
-  RegisterFailInterval  = time.Second
+  PingInterval          = 100 * time.Millisecond
+  PingFailInterval      = time.Second
   WaitLockInterval      = 10 * time.Millisecond
   WorkloadInterval      = 5 * time.Second
 )
@@ -242,6 +243,14 @@ func (wk *Worker) DoJob(args *DoJobArgs, res *DoJobReply) error {
     }
     DPrintf("GetSplit read %v %v", args.InputID, arr)
     res.Lines = arr // split content
+    res.OK = true
+
+  } else if args.Operation == DelSplit {
+
+    // delete from memory
+    wk.mu.Lock()
+    delete(wk.mem, args.InputID)
+    wk.mu.Unlock()
     res.OK = true
 
   } else if args.Operation == Count {
@@ -534,10 +543,17 @@ func (wk *Worker) Shutdown(args *ShutdownArgs, res *ShutdownReply) error {
 
 // Tell the master we exist and ready to work
 func (wk *Worker) register(masteraddr string, masterport string) bool {
-  master := strings.Join([]string{masteraddr, masterport}, "")
-  me := strings.Join([]string{wk.name, wk.port}, "")
   args := &RegisterArgs{}
-  args.Worker = me
+  args.Worker = strings.Join([]string{wk.name, wk.port}, "")
+  args.NCore = runtime.NumCPU() // number of logical CPUs on the local machine
+  args.Running = wk.cnt_get() // number of jobs currently running
+
+  runtime.GC() // run garbage collection
+  var m runtime.MemStats
+  runtime.ReadMemStats(&m)
+  args.MemUse = m.Alloc // current memory usage
+
+  master := strings.Join([]string{masteraddr, masterport}, "")
   var reply RegisterReply
   ok := call(master, "Master.Register", args, &reply)
   if ok == false {
@@ -617,21 +633,16 @@ func MakeWorker(MasterAddress string, MasterPort string, me string, port string,
   wk.mem = make(map[string]([]interface{}))
   wk.lastRPC = time.Now()
 
+  // listen to RPC calls
   wk.start_wait_for_jobs()
 
-  wk.register(MasterAddress, MasterPort)
-
-  // if idle for some time, register again
+  // send ping to master each PingInterval, with current job count and memory use
   go func() {
     for wk.alive {
-      wk.cnt_wait() // wait until truely idle, not running any job
-      if time.Since(wk.lastRPC) > RegisterInterval {
-        ok := wk.register(MasterAddress, MasterPort)
-        if ok {
-          time.Sleep(RegisterInterval)
-        } else {
-          time.Sleep(RegisterFailInterval)
-        }
+      ok := wk.register(MasterAddress, MasterPort)
+      time.Sleep(PingInterval)
+      if !ok {
+        time.Sleep(PingFailInterval)
       }
     }
   }()

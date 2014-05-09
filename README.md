@@ -45,30 +45,29 @@ Testing
 
 Update master host name (and/or port number) in config.txt.
 
-On master machine, run:
-
+On scheduler machine, run:
 ```sh
-go test -run MasterMRLineCount -timeout 1h  # 1h for 1hour
+go test -run KMeans -timeout 1h
 ```
-or
 ```sh
-go test -run KMeans -timeout 1h 
+go test -run MasterMRLineCount -debug
 ```
 
 On worker machines, run:
+```sh
+go test -run BasicWorker -timeout 1h
+```
+```sh
+go test -run WorkerSuperUnrel -timeout 1h -debug
+```
 
-```sh
-go test -run BasicWorker -timeout 1h  
-```
-or
-```sh
-go test -run WorkerRPCUnrel -timeout 1h  
-```
-where workers randomly discard RPC requests and replies, or
-```sh
-go test -run WorkerSuperUnrel -timeout 1h  
-```
-where workers not only have reliable RPC but also crash and reboot.
+Options:
+* `-run` (required) chooses which application to run. 
+  - Scheduler: `-run KMeans`, `-run MasterMRLineCount`, etc.
+  - Workers: `-run BasicWorker` for reliable, `-run WorkerRPCUnrel` for unreliable network connection, or `-run WorkerSuperUnrel` for unreliable network & may crash.
+* `-timeout` sets the timeout. For example, `-timeout 1h` for 1 hour.
+* `-debug` prints verbose log.
+
 
 
 Utility Shell

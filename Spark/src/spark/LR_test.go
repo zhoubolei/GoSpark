@@ -69,7 +69,7 @@ func TestLR(t *testing.T) {
   }
   
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine_smallLR.csv"); pointsText.name = "pointsText"
-  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCatCSV").Cache();  points.name = "points"
   
   fmt.Printf("Initial w[0:DD]=%v\n", w[0:DD])

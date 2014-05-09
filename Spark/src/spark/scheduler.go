@@ -145,18 +145,18 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  addressWorkerInMaster := ""
 	  
 	  done := false
-	  // First try the ones with this split
-	  for i:= 0; i<10; i++ {
-		  for j:= 0; j<len(serverList); j++ {
-		    sid   := (rand.Int()+j) % len(serverList)  // randomly pick one
-		    addressHDFS := serverList[sid]
-		    addressWorkerInMaster = d.findServerAddress(addressHDFS)
-		    if (addressWorkerInMaster != ""){
-		      break
-		    }
-		    time.Sleep(10*time.Millisecond)
-		  }
-		  
+	  // First try the ones with owning the split
+	  //for i:= 0; i<10; i++ {
+	  offset := rand.Int()
+	  if offset < 0 { offset = -offset}  // randomly pick an offset 
+	  for j:= 0; j<len(serverList); j++ {
+	    sid   := (offset+j) % len(serverList)  
+	    addressHDFS := serverList[sid]
+	    addressWorkerInMaster = d.findServerAddress(addressHDFS)
+	    if (addressWorkerInMaster != ""){
+	      break
+	    }
+	    time.Sleep(10*time.Millisecond)
 		  ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
 		  if(!ok) { 
 		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
@@ -165,6 +165,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		    break
 		  }
 	  }
+		  
+	  //}
 	  
 	  for !done {
 	    addressWorkerInMaster = randomWorkerFromMap(d.master.WorkersAvailable())

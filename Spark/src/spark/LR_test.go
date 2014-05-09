@@ -38,8 +38,8 @@ func (f *UserFunc) MapToVectorGradient(xy interface{}, wInterface interface{}) i
 }
 
 func (f *UserFunc) RedToOneGradient(xInterface, yInterface interface{}) interface{} {
-  x := xInterface.(KeyValue).Value.(Vector)
-  y := yInterface.(KeyValue).Value.(Vector)
+  x := xInterface.(KeyValue).Value.(*Vector)
+  y := yInterface.(KeyValue).Value.(*Vector)
   DPrintf("In RedToOneGradient: x=%v, y=%v\n", x,y)
   return x.Plus(y)
 }

@@ -93,7 +93,7 @@ func (r *RDD) Reduce(fnName string) interface{} {
   for i:=1; i<len(x); i++ {
     a1 := reflect.ValueOf(KeyValue{Value:ret})
     a2 := reflect.ValueOf(KeyValue{Value:x[i]})
-    r := fn.Call([]reflect.Value{*a1,*a2})
+    r := fn.Call([]reflect.Value{a1,a2})
     DPrintf("In RDD.Reduce r[0]=%v\n",r[0])
     ret = r[0].Interface()
   }

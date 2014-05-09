@@ -40,7 +40,8 @@ func TestBasicRead(t *testing.T) {
 }
 
 func TestGetInfoSlice(t *testing.T) {
-  fileURI := "hdfs://127.0.0.1:54310/user/kmean_data.txt";
+  //fileURI := "hdfs://127.0.0.1:54310/user/kmean_data.txt";
+  fileURI := "hdfs://vision24.csail.mit.edu:54310/user/featureSUN397.csv";
 	s := GetSplitInfoSlice(fileURI)
 	nsplit := len(s);
 	DPrintf("nsplit = %v\n", nsplit)

@@ -108,7 +108,7 @@ func TestKMeans(t *testing.T) {
   
   D := 4096
   DD := min(10,D)  // get first few elements to print out
-  K := 397
+  K := 50
   //MIN_DIST := 0.01
 
   centers := make([]Vector, K)

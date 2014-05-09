@@ -43,6 +43,14 @@ func get_first_worker(mr *Master) string {
   return w
 }
 
+func retry(mr *Master, w string, args *DoJobArgs, reply *DoJobReply) {
+  ok := false
+  for !ok { // if worker fails, roughly, wait for another available worker
+    w = get_first_worker(mr)
+    ok, _ = mr.AssignJob([]string{w}, true, args, reply)
+  }
+}
+
 func TestBasicMaster(t *testing.T) {
   fmt.Printf("Test: Basic Master Line Count...\n")
   mr := make_master()
@@ -54,7 +62,7 @@ func TestBasicMaster(t *testing.T) {
     for w := range workers {
       args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:strings.Join([]string{file, strconv.Itoa(i)}, "-")}
       var reply DoJobReply
-      ok := mr.AssignJob(w, &args, &reply)
+      ok, _ := mr.AssignJob([]string{w}, true, &args, &reply)
       if ok {
         i++
         if i >= nsplits {
@@ -94,17 +102,13 @@ func TestMasterMRLineCount(t *testing.T) {
     read_out := strings.Join([]string{file, "read", strconv.Itoa(i)}, "-")
     read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:read_out}
     var read_reply DoJobReply
-    for !mr.AssignJob(w, &read_args, &read_reply) { // if worker fails, roughly, wait for another available worker
-      w = get_first_worker(mr)
-    }
+    retry(mr, w, &read_args, &read_reply)
 
     // perform map
     map_out := strings.Join([]string{file, "map", strconv.Itoa(i)}, "-")
     map_args := DoJobArgs{Operation:MapJob, InputID:read_out, OutputID:map_out, Function:"LineCount"}
     var map_reply DoJobReply
-    for !mr.AssignJob(w, &map_args, &map_reply) { // if worker fails, roughly, wait for another available worker
-      w = get_first_worker(mr)
-    }
+    retry(mr, w, &map_args, &map_reply)
 
     reduce_in[i] = Split{SplitID:map_out, Hostname:""}
   }
@@ -113,16 +117,12 @@ func TestMasterMRLineCount(t *testing.T) {
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
   reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumInt"}
   var reduce_reply DoJobReply
-  for !mr.AssignJob(w, &reduce_args, &reduce_reply) { // if worker fails, roughly, wait for another available worker
-    w = get_first_worker(mr)
-  }
+  retry(mr, w, &reduce_args, &reduce_reply)
 
   // get result
   get_args := DoJobArgs{Operation:GetSplit, InputID:reduce_out}
   var get_reply DoJobReply
-  for !mr.AssignJob(w, &get_args, &get_reply) { // if worker fails, roughly, wait for another available worker
-    w = get_first_worker(mr)
-  }
+  retry(mr, w, &get_args, &get_reply)
 
   mr.Shutdown()
   // TODO check
@@ -148,7 +148,7 @@ func TestMasterNotFound(t *testing.T) {
   inputs := []Split{Split{SplitID:"asdf", Hostname:""}, Split{SplitID:"qwer", Hostname:""}}
   args := DoJobArgs{Operation:ReduceByKey, InputIDs:inputs, OutputID:"yui", Function:"SumInt"}
   var reply DoJobReply
-  mr.AssignJob(w, &args, &reply)
+  mr.AssignJob([]string{w}, true, &args, &reply)
 
   mr.Shutdown()
   // TODO check
@@ -178,11 +178,11 @@ func TestMasterGetSplit(t *testing.T) {
   read_out := "split0"
   read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:0, OutputID:read_out}
   var read_reply DoJobReply
-  mr.AssignJob(w, &read_args, &read_reply)
+  mr.AssignJob([]string{w}, true, &read_args, &read_reply)
 
   get_args := DoJobArgs{Operation:GetSplit, InputID:read_out}
   var get_reply DoJobReply
-  mr.AssignJob(w, &get_args, &get_reply)
+  mr.AssignJob([]string{w}, true, &get_args, &get_reply)
 
   mr.Shutdown()
   // TODO check
@@ -204,32 +204,24 @@ func TestMasterMRCharCountStruct(t *testing.T) {
     read_out := strings.Join([]string{file, "read", strconv.Itoa(i)}, "-")
     read_args := DoJobArgs{Operation:ReadHDFSSplit, HDFSFile:file, HDFSSplitID:i, OutputID:read_out}
     var read_reply DoJobReply
-    for !mr.AssignJob(w, &read_args, &read_reply) { // if worker fails, roughly, wait for another available worker
-      w = get_first_worker(mr)
-    }
+    retry(mr, w, &read_args, &read_reply)
     // perform map
     map_out := strings.Join([]string{file, "map", strconv.Itoa(i)}, "-")
     map_args := DoJobArgs{Operation:MapJob, InputID:read_out, OutputID:map_out, Function:"CharCountStruct"}
     var map_reply DoJobReply
-    for !mr.AssignJob(w, &map_args, &map_reply) { // if worker fails, roughly, wait for another available worker
-      w = get_first_worker(mr)
-    }
+    retry(mr, w, &map_args, &map_reply)
     reduce_in[i] = Split{SplitID:map_out, Hostname:""}
   }
   // perform reduce
   reduce_out := strings.Join([]string{file, "reduce"}, "-")
   reduce_args := DoJobArgs{Operation:ReduceByKeyJob, InputIDs:reduce_in, OutputID:reduce_out, Function:"SumIntStruct"}
   var reduce_reply DoJobReply
-  for !mr.AssignJob(w, &reduce_args, &reduce_reply) { // if worker fails, roughly, wait for another available worker
-    w = get_first_worker(mr)
-  }
+  retry(mr, w, &reduce_args, &reduce_reply)
 
   // get result
   get_args := DoJobArgs{Operation:GetSplit, InputID:reduce_out}
   var get_reply DoJobReply
-  for !mr.AssignJob(w, &get_args, &get_reply) { // if worker fails, roughly, wait for another available worker
-    w = get_first_worker(mr)
-  }
+  retry(mr, w, &get_args, &get_reply)
 
 
   mr.Shutdown()

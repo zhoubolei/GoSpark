@@ -157,7 +157,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		    time.Sleep(10*time.Millisecond)
 		  }
 		  
-		  ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
+		  ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
 		  if(!ok) { 
 		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
 		  } else {
@@ -168,7 +168,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  
 	  for !done {
 	    addressWorkerInMaster = randomWorkerFromMap(d.master.WorkersAvailable())
-	    ok := d.master.AssignJob(addressWorkerInMaster, &args, &reply)
+	    ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
 		  if(!ok) { 
 		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
 		  } else {
@@ -186,7 +186,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
-	  ok := d.master.AssignJob(sIn.Hostname, &args, &reply)
+	  ok, _ := d.master.AssignJob([]string{sIn.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname) }
 	  sOut.Hostname = sIn.Hostname
 	  
@@ -225,7 +225,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			    args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
 			  
 			    reply := DoJobReply{}
-			    ok := d.master.AssignJob(rdd.prevRDD1.splits[i].Hostname, &args, &reply)
+			    ok, _ := d.master.AssignJob([]string{rdd.prevRDD1.splits[i].Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, rdd.prevRDD1.splits[i].Hostname)  }
 	        
 			    for j:=0; j<nRed; j++ { 
@@ -330,7 +330,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	    reply := DoJobReply{}
 	    args := DoJobArgs{Operation: "GetSplit", InputID: s.SplitID};
 	         
-	    ok := d.master.AssignJob(s.Hostname, &args, &reply)
+	    ok, _ := d.master.AssignJob([]string{s.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	    if !ok {
         log.Printf("In Scheduler.computeRDD, Split=%v, => rerun\n",s)
       }

@@ -329,11 +329,11 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	  for i:=0; i<nOutputSplit; i++ {
 	    s := rdd.splits[i]
 	    reply := DoJobReply{}
-	    args := DoJobArgs{Operation: "GetSplit", InputID: s.SplitID};
+	    args := DoJobArgs{Operation: GetSplit, InputID: s.SplitID};
 	         
 	    ok, _ := d.master.AssignJob([]string{s.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	    if !ok {
-        log.Printf("In Scheduler.computeRDD, Split=%v, => rerun\n",s)
+        log.Printf("In Scheduler.computeRDD, Op=%v, Split=%v, => rerun\n",operationType, s)
       }
       ret = append(ret, reply.Lines)  // append one slice to another : add ...
 	  }
@@ -342,8 +342,23 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
   // TODO:
   
   case "Reduce":
-  // TODO:
-
+    ret := []interface{} {}
+	  for i:=0; i<nOutputSplit; i++ {
+	    s := rdd.splits[i]
+	    reply := DoJobReply{}
+	    args := DoJobArgs{Operation: ReduceJob, InputIDs: []Split{*s}, Function: fn };
+	         
+	    ok, _ := d.master.AssignJob([]string{s.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
+	    if !ok {
+        log.Printf("In Scheduler.computeRDD, Op=%v, Split=%v, => rerun\n",operationType, s)
+      } else {
+        DPrintf("In Scheduler.computeRDD, reply.Result=%v\n",reply.Result)
+      }
+      DPrintf("reply.Result=%v", reply.Result)
+      ret = append(ret, reply.Result)  // append one slice to another : add ...
+	  }
+    
+    return ret 
   }
     
     

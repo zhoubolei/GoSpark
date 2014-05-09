@@ -147,8 +147,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  done := false
 	  // First try the ones with this split
 	  for i:= 0; i<10; i++ {
-		  for {
-		    sid   := rand.Int() % len(serverList)  // randomly pick one
+		  for j:= 0; j<len(serverList); j++ {
+		    sid   := (rand.Int()+j) % len(serverList)  // randomly pick one
 		    addressHDFS := serverList[sid]
 		    addressWorkerInMaster = d.findServerAddress(addressHDFS)
 		    if (addressWorkerInMaster != ""){
@@ -175,6 +175,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		    done = true
 		    break
 		  }
+		  time.Sleep(10*time.Millisecond)
 	  }
 	  
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster

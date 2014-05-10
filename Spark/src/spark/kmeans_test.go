@@ -133,6 +133,7 @@ func TestKMeans(t *testing.T) {
     hdfsServer = "hdfs://vision24.csail.mit.edu:54310" 
   }
   fileURI := fmt.Sprintf("%s%s", hdfsServer, hadoopPath)
+  pointsText := c.TextFile(fileURI); pointsText.name = "pointsText"
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )

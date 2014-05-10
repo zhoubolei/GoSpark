@@ -43,10 +43,10 @@ func NewContext(jobName string) *Context{
 
 // Initialize HDFS RDD 
 func (c *Context) TextFile(fileURI string) *RDD {
-  s := hadoop.GetSplitInfo(fileURI)
+  s := hadoop.GetSplitInfoSlice(fileURI)
   
-  rdd := makeRDD(c, s.Len(), Narrow, RangePartition, HDFSFile, fileURI, "", nil, nil)
-  
+  rdd := makeRDD(c, len(s), Narrow, RangePartition, HDFSFile, fileURI, "", nil, nil)
+  rdd.hadoopSplitInfo = s;
   return rdd
 }
 

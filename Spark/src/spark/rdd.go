@@ -25,7 +25,9 @@ type RDD struct {
   isTarget        bool
   shuffleN        int
   shuffleSplits   [][]*Split
-  shuffleMu       sync.Mutex              
+  shuffleMu       sync.Mutex   
+  
+  hadoopSplitInfo [][]string           
 }
 
 func makeRDD(ctx *Context, length int, dependType string, splitType string, operationType string, filePath string,

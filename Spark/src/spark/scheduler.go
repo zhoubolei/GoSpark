@@ -4,7 +4,6 @@ import "fmt"
 import "os"
 import "bufio"
 import "log"
-import "hadoop"
 import "math/rand"
 import "strings"
 import "time"
@@ -137,9 +136,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
 	  
-	  sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
-	  DPrintf("len(sinfo) = %d\n", len(sinfo))
-	  serverList := sinfo[SpInd]
+	  //sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
+	  DPrintf("len(sinfo) = %d\n", len(rdd.hadoopSplitInfo))
+	  serverList := rdd.hadoopSplitInfo[SpInd]
 	  
 	  
 	  addressWorkerInMaster := ""

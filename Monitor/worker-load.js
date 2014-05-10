@@ -34,14 +34,14 @@ setInterval(function() {
 }, 1000);
 
 function createTimeline() {
-  var cpuChart = new SmoothieChart({ millisPerPixel: 20, grid: { strokeStyle: '#555555', lineWidth: 1, millisPerLine: 1000, verticalSections: 4 }});
-  var memChart = new SmoothieChart({ millisPerPixel: 20, grid: { strokeStyle: '#555555', lineWidth: 1, millisPerLine: 1000, verticalSections: 4 }});
+  var cpuChart = new SmoothieChart({ millisPerPixel: 100, grid: { strokeStyle: '#555555', lineWidth: 1, millisPerLine: 5000, verticalSections: 4 }, timestampFormatter:SmoothieChart.timeFormatter});
+  var memChart = new SmoothieChart({ millisPerPixel: 100, grid: { strokeStyle: '#555555', lineWidth: 1, millisPerLine: 5000, verticalSections: 4 }, timestampFormatter:SmoothieChart.timeFormatter});
   for (var i = 0; i < cpuDataSets.length; i++) {
     cpuChart.addTimeSeries(cpuDataSets[i], seriesOptions[i]);
     memChart.addTimeSeries(memDataSets[i], seriesOptions[i]);
   }
-  cpuChart.streamTo(document.getElementById("cpuchart"), 1000);
-  memChart.streamTo(document.getElementById("memchart"), 1000);
+  cpuChart.streamTo(document.getElementById("cpuchart"), 0);
+  memChart.streamTo(document.getElementById("memchart"), 0);
 }
 
 function refreshTimeline() {

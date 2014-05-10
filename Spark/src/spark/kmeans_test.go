@@ -122,8 +122,6 @@ func TestKMeans(t *testing.T) {
     }
     centers[i] = center
   }
-  //fmt.Println(centers)
-  
   
   hadoopPath := "/user/featureSUN397_combine.csv"
   hdfsServer := ""
@@ -134,6 +132,7 @@ func TestKMeans(t *testing.T) {
   }
   fileURI := fmt.Sprintf("%s%s", hdfsServer, hadoopPath)
   pointsText := c.TextFile(fileURI); pointsText.name = "pointsText"
+  points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   
   // run one kmeans iteration
   // points (x,y) -> (index of the closest center, )

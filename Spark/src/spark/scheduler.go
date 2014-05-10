@@ -249,7 +249,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
     args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
-    ok := call(sOut.Hostname, "Worker.DoJob", &args, &reply)
+    ok, _ := d.master.AssignJob([]string{sOut.Hostname}, true, &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  }
 	  
 	 

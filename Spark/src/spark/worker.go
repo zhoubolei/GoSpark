@@ -83,8 +83,15 @@ func (wk *Worker) read_split(hostname string, splitID string) ([]interface{}, bo
     args := DoJobArgs{Operation:GetSplit, InputID:splitID}
     var reply DoJobReply
     ok := call(hostname, "Worker.DoJob", args, &reply)
-    if ok == false || reply.OK == false {
-      DPrintf("fetch failed: worker %s, split %s", hostname, splitID)
+    trial := 0
+    for !ok /*&& trial < 10*/ {
+      DPrintf("RPC failed, try again")
+      time.Sleep(time.Second)
+      ok = call(hostname, "Worker.DoJob", args, &reply)
+      trial++
+    }
+    if reply.OK == false {
+      DPrintf("fetch rejected: worker %s, split %s", hostname, splitID)
       return nil, false
     }
     // store to local mem

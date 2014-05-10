@@ -16,12 +16,15 @@ import (
 func (f *UserFunc) MapLineToFloatVectorCatCSV(line interface{}) interface{} {
   fieldTexts := strings.FieldsFunc(line.(KeyValue).Value.(string), func(c rune) bool { return c == ',' })
   
-  vecs := make(Vector, len(fieldTexts)-2)
+  vecs := make(Vector, len(fieldTexts)-1)
+  vecs[0] = 1
   for i := range vecs {
-    vecs[i], _ = strconv.ParseFloat(fieldTexts[i+2], 64)
+    if i>0 {      
+      vecs[i], _ = strconv.ParseFloat(fieldTexts[i+1], 64)
+    }
   }
   
-  y := -1.0;
+  y := 0.0
   if cat, _ := strconv.Atoi(fieldTexts[1]); cat < 150 { // is of some category or not
     y = 1.0
   }
@@ -33,8 +36,8 @@ func (f *UserFunc) MapToVectorGradient(xy interface{}, wInterface interface{}) i
   x := xy.(KeyValue).Value.(KeyValue).Value.(Vector)
   w := wInterface.(KeyValue).Value.(*Vector)
   
-  DPrintf("len(x)=%v len(w)=%v\n", len(x), len(*w))
-  grad := x.Multiply(1/(1+math.Exp(-y*(w.Dot(x))))-1).Multiply(y)
+  //DPrintf("len(x)=%v len(w)=%v\n", len(x), len(*w))
+  grad := x.Multiply(1/(1+math.Exp(w.Dot(x)))-y)
   return grad
 }
 
@@ -72,8 +75,10 @@ func TestLR(t *testing.T) {
   
   gob.Register([]Vector{})
   
-  D := 4096
+  D := 4096 +1
   DD := min(10,D)  // get first few elements to print out
+  
+  alpha := 0.1     // alpha of gradient descend
   
   w := make(Vector, D)
   for i := range w {
@@ -97,16 +102,13 @@ func TestLR(t *testing.T) {
   for i:=0; i<10; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints := points.MapWithData("MapToVectorGradient", w); mappedPoints.name = "mappedPoints"  
-    //fmt.Printf("mappedPoints.Collect()=%v\n", mappedPoints.Collect()) 
     gradInterface := mappedPoints.Reduce("RedToOneGradient")
-    w = w.Minus((gradInterface.(Vector)))
+    w = w.Minus((gradInterface.(Vector)).Multiply(alpha))
     fmt.Printf("w[0:DD]=%v\n", w[0:DD])
   }
   Compare := points.MapWithData("MapToLRLabelAndTrueLabel", w).Collect();
   
   fout, _ := os.Create("LROutput-CompareLabels.txt")
-  // bug: len(KmeansLabels) is zero
-  //fmt.Printf("len(KmeansLabels) %v Centers: %v\n", len(KmeansLabels) , len(TrueLabels))
   defer fout.Close()
   for i := 0; i < len(Compare); i++ {
     fout.WriteString( fmt.Sprintf("%.3f %.3f\n", Compare[i].(KeyValue).Key.(float64), Compare[i].(KeyValue).Value.(float64)) ) 

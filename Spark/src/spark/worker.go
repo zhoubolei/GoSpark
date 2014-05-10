@@ -578,6 +578,7 @@ func (wk *Worker) register(masteraddr string, masterport string) bool {
   args.NCore = runtime.NumCPU() // number of logical CPUs on the local machine
   args.Running = wk.cnt_get() // number of jobs currently running
 
+  DPrintf("NCore=%v Running=%v\n", args.NCore, args.Running)
   runtime.GC() // run garbage collection
   var m runtime.MemStats
   runtime.ReadMemStats(&m)

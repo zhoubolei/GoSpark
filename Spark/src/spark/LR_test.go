@@ -9,6 +9,7 @@ import (
   "encoding/gob"
   "math"
   "os"
+  "flag"
 )
 
 // Format [PicIndex],[CategoryIndex],[feature1],[feature2],[feature3],[feature4],[feature5]...
@@ -21,7 +22,7 @@ func (f *UserFunc) MapLineToFloatVectorCatCSV(line interface{}) interface{} {
   }
   
   y := -1.0;
-  if fieldTexts[1] == "1" { // is of category 1 or not
+  if cat, _ := strconv.Atoi(fieldTexts[1]); cat < 150 { // is of some category or not
     y = 1.0
   }
   return KeyValue{y, vecs}
@@ -38,18 +39,19 @@ func (f *UserFunc) MapToVectorGradient(xy interface{}, wInterface interface{}) i
 }
 
 func (f *UserFunc) RedToOneGradient(xInterface, yInterface interface{}) interface{} {
-  _, ok := xInterface.(KeyValue).Value.(Vector); 
-  
-  if ok {
-    x := xInterface.(KeyValue).Value.(Vector)
-    y := yInterface.(KeyValue).Value.(Vector)
-    return (x).Plus(y)
+  var x, y Vector
+  if _, ok := xInterface.(KeyValue).Value.(Vector); ok {
+    x = xInterface.(KeyValue).Value.(Vector)
   } else {
-    x := *(xInterface.(KeyValue).Value.(*Vector))
-    y := *(yInterface.(KeyValue).Value.(*Vector))
-    return (x).Plus(y)
+    x = *(xInterface.(KeyValue).Value.(*Vector))
   }
-  return nil
+  
+  if _, ok := yInterface.(KeyValue).Value.(Vector); ok {
+    y = yInterface.(KeyValue).Value.(Vector)
+  } else {
+    y = *(yInterface.(KeyValue).Value.(*Vector))
+  }
+  return (x).Plus(y)
 }
 
 func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface{}) interface{} {
@@ -60,6 +62,8 @@ func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface
   yp := (1/(1+math.Exp(-(w.Dot(x)))))
   return KeyValue{yp, y}
 }
+
+var Local = flag.Bool("local", false, "Run on vision server")
 
 func TestLR(t *testing.T) {
   c := NewContext("LR")
@@ -76,18 +80,26 @@ func TestLR(t *testing.T) {
     w[i] = rand.Float64()
   }
   
+  hadoopPath := "/user/featureSUN397_combine.csv"
+  hdfsServer := ""
+  if *Local {
+    hdfsServer = "hdfs://localhost:54310" 
+  } else {
+    hdfsServer = "hdfs://vision24.csail.mit.edu:54310" 
+  }
+  fileURI := fmt.Sprintf("%s%s", hdfsServer, hadoopPath)
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine_smallLR.csv"); pointsText.name = "pointsText"
   //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
-  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  pointsText := c.TextFile(fileURI); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCatCSV").Cache();  points.name = "points"
   
   fmt.Printf("Initial w[0:DD]=%v\n", w[0:DD])
-  for i:=0; i<10; i++ {
+  for i:=0; i<4; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints := points.MapWithData("MapToVectorGradient", w); mappedPoints.name = "mappedPoints"  
     //fmt.Printf("mappedPoints.Collect()=%v\n", mappedPoints.Collect()) 
     gradInterface := mappedPoints.Reduce("RedToOneGradient")
-    w = w.Minus(*(gradInterface.(*Vector)))
+    w = w.Minus((gradInterface.(Vector)))
     fmt.Printf("w[0:DD]=%v\n", w[0:DD])
   }
   Compare := points.MapWithData("MapToLRLabelAndTrueLabel", w).Collect();

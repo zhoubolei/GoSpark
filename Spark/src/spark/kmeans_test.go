@@ -122,7 +122,9 @@ func TestKMeans(t *testing.T) {
   //fmt.Println(centers)
   
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+    fmt.Println("x1:")
   pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+    fmt.Println("x2:")
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   

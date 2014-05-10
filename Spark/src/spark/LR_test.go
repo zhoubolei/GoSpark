@@ -94,7 +94,7 @@ func TestLR(t *testing.T) {
   points := pointsText.Map("MapLineToFloatVectorCatCSV").Cache();  points.name = "points"
   
   fmt.Printf("Initial w[0:DD]=%v\n", w[0:DD])
-  for i:=0; i<4; i++ {
+  for i:=0; i<10; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints := points.MapWithData("MapToVectorGradient", w); mappedPoints.name = "mappedPoints"  
     //fmt.Printf("mappedPoints.Collect()=%v\n", mappedPoints.Collect()) 

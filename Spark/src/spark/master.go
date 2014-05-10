@@ -182,50 +182,43 @@ func (mr *Master) find_least_load(workersToConsider []string) string {
 func (mr *Master) AssignJob(workersPreferred []string, force bool, args *DoJobArgs, reply *DoJobReply) (bool, string) {
   // use nCore to assign nCore jobs to select workers, return the worker chosen
 
-  // first try all preferred workers
-  if force { // can only use the preferred workers, try them round-robin
-    for _, w := range workersPreferred {
-     if mr.assign_if_capable(w, args, reply) {
-        return true, w
-      }
+  // first try the preferred workers if any of them is capable
+  for _, w := range workersPreferred {
+    if mr.assign_if_capable(w, args, reply) {
+      return true, w
     }
-    // none succeeded
-    return false, ""
-  } else { // not forced, i.e. if the preferred workers not capable, allowed to use others
-    // first try the preferred workers if any of them is capable
-    for _, w := range workersPreferred {
-      if mr.assign_if_capable(w, args, reply) {
-        return true, w
-      }
-    }
-    // then try all workers if any of them is capable
-    all := mr.WorkersAvailable()
+  }
+  // then try all workers if any of them is capable
+  all := mr.WorkersAvailable()
+  if !force {
     for w := range all {
       if mr.assign_if_capable(w, args, reply) {
         return true, w
       }
     }
-    // if still fail, pick the preferred worker with lightest load
-    w := mr.find_least_load(workersPreferred)
-    // if no preferred workers are available, pick any worker with the lightest load
-    if w == "" {
+  }
+  // if still fail, pick the preferred worker with lightest load
+  w := mr.find_least_load(workersPreferred)
+  // if no preferred workers are available, pick any worker with the lightest load
+  if w == "" {
+    if !force {
       all = mr.WorkersAvailable() // refresh
       all_avail := make([]string, 0)
       for w_avail := range all {
         all_avail = append(all_avail, w_avail)
       }
       w = mr.find_least_load(all_avail)
-      // if no any worker available by this time
-      if w == "" {
-        return false, ""
-      }
     }
-    // assign to this worker with lightest load
-    if mr.assign_to_worker(w, args, reply) {
-      return true, w
-    } else {
+    // if no any worker available by this time
+    if w == "" {
       return false, ""
     }
+  }
+  // assign to this worker with lightest load
+  if mr.assign_to_worker(w, args, reply) {
+    return true, w
+  } else {
+    return false, ""
   }
 }
 

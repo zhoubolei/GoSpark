@@ -8,6 +8,11 @@ import (
   "sync"
   "encoding/gob"
   "time"
+  "websocket"
+  "net/http"
+  "fmt"
+  "strconv"
+  "strings"
 )
 
 type WorkerInfo struct {
@@ -28,6 +33,7 @@ type Master struct {
   // Map of registered workers that you need to keep up to date
   mu sync.RWMutex
   workers map[string]WorkerInfo
+  machines []string
 }
 
 func MakeMaster(ip string, port string) *Master {
@@ -42,6 +48,13 @@ func MakeMaster(ip string, port string) *Master {
   mr.registerChannel = make(chan RegisterArgs)
   mr.workers = make(map[string]WorkerInfo)
   mr.StartRegistrationServer()
+
+  // for HTML dynamic chart
+  http.Handle("/chart", websocket.Handler(mr.webHandler))
+  err := http.ListenAndServe(":12345", websocket.Handler(mr.webHandler))
+  if err != nil {
+    DPrintf("ListenAndServe: %s", err.Error())
+  }
   return &mr
 }
 
@@ -72,6 +85,9 @@ func (mr *Master) Register(args *RegisterArgs, res *RegisterReply) error {
   mr.mu.Lock()
   mr.workers[args.Worker] = WorkerInfo{address:args.Worker, nCore:args.NCore, running:args.Running, memUse:args.MemUse}
   mr.mu.Unlock()
+
+  // assign an index to this ip address
+  mr.worker_index(args.Worker)
   return nil
 }
 
@@ -229,3 +245,55 @@ func (mr *Master) AssignJob(workersPreferred []string, force bool, args *DoJobAr
   }
 }
 
+func (mr *Master) worker_index(w string) int {
+  mr.mu.Lock()
+  defer mr.mu.Unlock()
+
+  ip := strings.Split(w, ":")[0]
+  // look up current index assignment
+  for i := range mr.machines {
+    if ip == mr.machines[i] {
+      return i
+    }
+  }
+  // not appeared yet
+  mr.machines = append(mr.machines, ip)
+  return len(mr.machines) - 1
+}
+
+func (mr *Master) webHandler(ws *websocket.Conn) {
+  var in []byte
+  if err := websocket.Message.Receive(ws, &in); err != nil {
+      fmt.Printf("error %v\n", err)
+      return
+  }
+  //fmt.Printf("Received: %s\n", string(in))
+
+  // collect usage statistics
+  n_jobs := make([]int, 20)
+  mem_use := make([]uint64, 20)
+  mr.mu.RLock()
+  for i := range mr.machines {
+    ip := mr.machines[i]
+    fullname := ""
+    for w := range mr.workers {
+      if strings.Split(w, ":")[0] == ip {
+        fullname = w
+      }
+    }
+    if fullname != "" {
+      n_jobs[i] = mr.workers[fullname].running
+      mem_use[i] = mr.workers[fullname].memUse
+    }
+  }
+  mr.mu.RUnlock()
+
+  // reply to client
+  arr := make([]string, 40)
+  for i := 0; i < 40; i += 2 {
+    arr[i] = strconv.Itoa(n_jobs[i/2])
+    arr[i+1] = strconv.FormatUint(mem_use[i/2], 10)
+  }
+  out := []byte(strings.Join(arr, " "))
+  websocket.Message.Send(ws, out)
+}

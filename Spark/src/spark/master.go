@@ -146,7 +146,7 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
 func (mr *Master) assign_to_worker(w string, args *DoJobArgs, reply *DoJobReply) bool {
   ok := call(w, "Worker.DoJob", args, reply)
   trial := 0
-  for !ok && trial < 10 {
+  for !ok /*&& trial < 10*/ {
     DPrintf("RPC failed, try again")
     time.Sleep(time.Second)
     ok = call(w, "Worker.DoJob", args, reply)

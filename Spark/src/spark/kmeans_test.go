@@ -100,11 +100,9 @@ func min(x, y int) int{
 }
 
 func TestKMeans(t *testing.T) {
-    fmt.Println("x1:")
   c := NewContext("kmeans")
   defer c.Stop()
   
-    fmt.Println("x1:")
   gob.Register(CenterCounter{})
   gob.Register([]Vector{})
   

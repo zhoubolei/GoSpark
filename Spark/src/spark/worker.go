@@ -608,11 +608,11 @@ func (wk *Worker) start_wait_for_jobs() {
     for wk.alive {
       conn, err := wk.l.Accept()
       if err == nil && wk.alive {
-        if wk.unreliable && (rand.Int63() % 1000) < 100 {
+        if wk.unreliable && (rand.Int63() % 1000) < 50 {
           // discard the request.
           DPrintf("worker rpc: discard request")
           conn.Close()
-        } else if wk.unreliable && (rand.Int63() % 1000) < 200 {
+        } else if wk.unreliable && (rand.Int63() % 1000) < 50 {
           // process the request but force discard of reply.
           DPrintf("worker rpc: process request but discard reply")
           c1 := conn.(*net.TCPConn)

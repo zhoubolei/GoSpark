@@ -2,69 +2,14 @@
 <html>
 <head>
 <script type="text/javascript" src="smoothie.js"></script>
-<script type="text/javascript">
-var n_jobs = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-var mem_use = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-function WebSocketTest() {
-  if ("WebSocket" in window) {
-     //alert("WebSocket is supported by your Browser!");
-     // Let us open a web socket
-     var ws = new WebSocket("ws://department-of-alchemy.mit.edu:12345/chart");
-     ws.onopen = function() {
-        // Web Socket is connected, send data using send()
-        ws.send("Message to send");
-     };
-     ws.onmessage = function (evt) { 
-       var received_msg = evt.data;
-       //alert("Message is received..." + received_msg);
-       var reader = new FileReader();
-       reader.onload = function() {
-         //alert("blob:" + reader.result);
-         var myArray = reader.result.split(" ");
-         for (var i = 0; i < 40; i += 2) {
-           n_jobs[i/2] = parseInt(myArray[i], 10);
-           mem_use[i/2] = parseInt(myArray[i+1], 20);
-         }
-       };
-       reader.readAsText(received_msg);
-    };
-    ws.onclose = function() { 
-      // websocket is closed.
-      //alert("Connection is closed..."); 
-    };
-  }
-  else {
-    // The browser doesn't support WebSocket
-    alert("WebSocket NOT supported by your Browser!");
-  }
-}
-
-  // Randomly add a data point every 500ms
-  var line1 = new TimeSeries();
-  var line2 = new TimeSeries();
-  setInterval(function() {
-    line1.append(new Date().getTime(), n_jobs[0]);
-    line2.append(new Date().getTime(), mem_use[0]);
-  }, 1000);
-
-  setInterval(WebSocketTest, 1000);
-
-  function createTimeline() {
-    var chart = new SmoothieChart();
-    chart.addTimeSeries(line1, { strokeStyle: 'rgba(0, 255, 0, 1)', fillStyle: 'rgba(0, 255, 0, 0.2)', lineWidth: 4 });
-    chart.addTimeSeries(line2, { strokeStyle: 'rgba(0, 255, 0, 1)', fillStyle: 'rgba(0, 255, 0, 0.2)', lineWidth: 4 });
-    chart.streamTo(document.getElementById("chart"), 1000);
-  }
-</script>
+<script type="text/javascript" src="worker-load.js"></script>
 </head>
 <body onload="createTimeline()">
 
     <p>The <em>hello world</em> of <a href="../">Smoothie Charts</a>. View source.</p>
 
-    <canvas id="chart" width="400" height="100"></canvas>
-<div id="sse">
-   <a href="javascript:WebSocketTest()">Run WebSocket</a>
-</div>
+    <canvas id="cpuchart" width="400" height="100"></canvas>
+    <canvas id="memchart" width="400" height="100"></canvas>
 </body>
 </html>
 

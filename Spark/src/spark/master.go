@@ -275,15 +275,12 @@ func (mr *Master) webHandler(ws *websocket.Conn) {
   mr.mu.RLock()
   for i := range mr.machines {
     ip := mr.machines[i]
-    fullname := ""
-    for w := range mr.workers {
-      if strings.Split(w, ":")[0] == ip {
-        fullname = w
+    for fullname := range mr.workers {
+      if strings.Split(fullname, ":")[0] == ip {
+        n_jobs[i] = mr.workers[fullname].running
+        mem_use[i] = mr.workers[fullname].memUse
+        break
       }
-    }
-    if fullname != "" {
-      n_jobs[i] = mr.workers[fullname].running
-      mem_use[i] = mr.workers[fullname].memUse
     }
   }
   mr.mu.RUnlock()
@@ -294,6 +291,7 @@ func (mr *Master) webHandler(ws *websocket.Conn) {
     arr[i] = strconv.Itoa(n_jobs[i/2])
     arr[i+1] = strconv.FormatUint(mem_use[i/2], 10)
   }
+  DPrintf("%v", arr)
   out := []byte(strings.Join(arr, " "))
   websocket.Message.Send(ws, out)
 }

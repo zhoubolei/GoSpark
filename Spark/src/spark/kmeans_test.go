@@ -100,9 +100,11 @@ func min(x, y int) int{
 }
 
 func TestKMeans(t *testing.T) {
+    fmt.Println("x1:")
   c := NewContext("kmeans")
   defer c.Stop()
   
+    fmt.Println("x1:")
   gob.Register(CenterCounter{})
   gob.Register([]Vector{})
   
@@ -111,6 +113,7 @@ func TestKMeans(t *testing.T) {
   K := 50
   //MIN_DIST := 0.01
 
+    fmt.Println("x1:")
   centers := make([]Vector, K)
   for i := range centers {
     center := make(Vector, D)
@@ -123,9 +126,9 @@ func TestKMeans(t *testing.T) {
   
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
     fmt.Println("x1:")
-  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
     fmt.Println("x2:")
-  //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCSVWithCat").Cache();  points.name = "points"
   
   // run one kmeans iteration

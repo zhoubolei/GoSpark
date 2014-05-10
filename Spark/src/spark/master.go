@@ -51,10 +51,12 @@ func MakeMaster(ip string, port string) *Master {
 
   // for HTML dynamic chart
   http.Handle("/chart", websocket.Handler(mr.webHandler))
-  err := http.ListenAndServe(":12345", websocket.Handler(mr.webHandler))
-  if err != nil {
-    DPrintf("ListenAndServe: %s", err.Error())
-  }
+  go func() {
+	  err := http.ListenAndServe(":12345", websocket.Handler(mr.webHandler))
+	  if err != nil {
+	    DPrintf("ListenAndServe: %s", err.Error())
+	  }
+  }()
   return &mr
 }
 

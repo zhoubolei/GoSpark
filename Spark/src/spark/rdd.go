@@ -2,6 +2,7 @@ package spark
 
 import (
   "sync"
+  "reflect"
 )
 
 // this base RDD to have more types of RDD map, join, ..., HDFS file
@@ -74,13 +75,27 @@ func (r *RDD) Filter(fnName string) *RDD {
 ///////////////////////////////////// RDD Actions ////////
 
 func (r *RDD) Reduce(fnName string) interface{} {
+  DPrintf("In RDD.Reduce fnName=%v\n", fnName)
   x := r.ctx.scheduler.computeRDD(r, Reduce, fnName);
   ret := x[0]
+  DPrintf("In RDD.Reduce x[0]=%v\n", x[0])
   
-  // Todo: get function by name
-  f := func(interface{}, interface{}) interface{}{ return nil}//
+	// Do the reduce again from the reduced values from all splits
+	  
+  // look up function by name
+  fn := reflect.ValueOf(&UserFunc{}).MethodByName(fnName)
+  if !fn.IsValid() {
+    DPrintf("In RDD.Reduce function %v undefined\n", fnName)
+    return nil
+  }
+  
+  DPrintf("In RDD.Reduce len(x)=%v\n", len(x))
   for i:=1; i<len(x); i++ {
-    ret = f(ret, x[i])
+    a1 := reflect.ValueOf(KeyValue{Value:ret})
+    a2 := reflect.ValueOf(KeyValue{Value:x[i]})
+    r := fn.Call([]reflect.Value{a1,a2})
+    DPrintf("In RDD.Reduce r[0]=%v\n",r[0])
+    ret = r[0].Interface()
   }
   return ret
 }

@@ -244,7 +244,6 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     // now we can do reduce
 		InputIDs := make([]Split, nSpl)
     reply := DoJobReply{}
-    //DPrintf("209 nSpl=%v SpInd=%v len(ss)=%v len(ss[i])= nRed=%v\n", nSpl, SpInd, len(ss), nRed)
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *(ss[i][SpInd]) }
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker

@@ -146,7 +146,6 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  
 	  done := false
 	  // First try the ones with owning the split
-	  //for i:= 0; i<10; i++ {
 	  offset := rand.Int()
 	  if offset < 0 { offset = -offset}  // randomly pick an offset 
 	  for j:= 0; j<len(serverList); j++ {
@@ -162,10 +161,8 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 			    break
 			  }
 	    }
-	    time.Sleep(10*time.Millisecond)
+	    time.Sleep(100*time.Millisecond)
 	  }
-		  
-	  //}
 	  
 	  for !done {
 	    addressWorkerInMaster = randomWorkerFromMap(d.master.WorkersAvailable())
@@ -176,11 +173,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		    done = true
 		    break
 		  }
-		  time.Sleep(10*time.Millisecond)
+		  time.Sleep(100*time.Millisecond)
 	  }
 	  
 	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
-  //case MapWithData:
   
   case Map:
 	  sIn := rdd.prevRDD1.splits[SpInd]

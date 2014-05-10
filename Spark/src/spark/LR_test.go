@@ -38,10 +38,18 @@ func (f *UserFunc) MapToVectorGradient(xy interface{}, wInterface interface{}) i
 }
 
 func (f *UserFunc) RedToOneGradient(xInterface, yInterface interface{}) interface{} {
-  x := xInterface.(KeyValue).Value.(*Vector)
-  y := yInterface.(KeyValue).Value.(*Vector)
-  DPrintf("In RedToOneGradient: x=%v, y=%v\n", x,y)
-  return x.Plus(y)
+  _, ok := xInterface.(KeyValue).Value.(Vector); 
+  
+  if ok {
+    x := xInterface.(KeyValue).Value.(Vector)
+    y := yInterface.(KeyValue).Value.(Vector)
+    return (x).Plus(y)
+  } else {
+    x := *(xInterface.(KeyValue).Value.(*Vector))
+    y := *(yInterface.(KeyValue).Value.(*Vector))
+    return (x).Plus(y)
+  }
+  return nil
 }
 
 func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface{}) interface{} {
@@ -69,11 +77,12 @@ func TestLR(t *testing.T) {
   }
   
   //pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine_smallLR.csv"); pointsText.name = "pointsText"
-  pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  //pointsText := c.TextFile("hdfs://vision24.csail.mit.edu:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
+  pointsText := c.TextFile("hdfs://localhost:54310/user/featureSUN397_combine.csv"); pointsText.name = "pointsText"
   points := pointsText.Map("MapLineToFloatVectorCatCSV").Cache();  points.name = "points"
   
   fmt.Printf("Initial w[0:DD]=%v\n", w[0:DD])
-  for i:=0; i<100; i++ {
+  for i:=0; i<10; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints := points.MapWithData("MapToVectorGradient", w); mappedPoints.name = "mappedPoints"  
     //fmt.Printf("mappedPoints.Collect()=%v\n", mappedPoints.Collect()) 

@@ -273,7 +273,18 @@ func (mr *Master) worker_array() string {
   defer mr.mu.Unlock()
   names := make([]string, 0)
   for i := range mr.machines {
-    names = append(names, mr.machines[i])
+    alive := false
+    ip := mr.machines[i]
+    for fullname := range mr.workers {
+      if strings.Split(fullname, ":")[0] == ip {
+        names = append(names, ip)
+        alive = true
+        break
+      }
+    }
+    if !alive {
+      names = append(names, "N/A")
+    }
   }
   n := len(mr.machines)
   for i := n; i < 20; i++ {

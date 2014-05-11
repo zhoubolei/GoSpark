@@ -13,6 +13,8 @@ import (
   "fmt"
   "strconv"
   "strings"
+  "os"
+  "bufio"
 )
 
 type WorkerInfo struct {
@@ -34,6 +36,7 @@ type Master struct {
   mu sync.RWMutex
   workers map[string]WorkerInfo
   machines []string
+  stasticFileWriter *bufio.Writer
 }
 
 func MakeMaster(ip string, port string) *Master {
@@ -48,7 +51,8 @@ func MakeMaster(ip string, port string) *Master {
   mr.registerChannel = make(chan RegisterArgs)
   mr.workers = make(map[string]WorkerInfo)
   mr.StartRegistrationServer()
-
+  stasticFile, _ := os.Create("statistic.txt")
+  mr.stasticFileWriter = bufio.NewWriter(stasticFile)
   // for HTML dynamic chart
   http.Handle("/chart", websocket.Handler(mr.webHandler))
   go func() {
@@ -143,6 +147,10 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
   return m
 }
 
+func (mr *Master) output_statistic(args *DoJobArgs, reply *DoJobReply) {
+  mr.stasticFileWriter.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v\n", args.Operation, reply.Latency.Seconds(), args.Function, args.HDFSFile, args.HDFSSplitID))
+}
+
 func (mr *Master) assign_to_worker(w string, args *DoJobArgs, reply *DoJobReply) bool {
   ok := call(w, "Worker.DoJob", args, reply)
   trial := 0
@@ -159,6 +167,7 @@ func (mr *Master) assign_to_worker(w string, args *DoJobArgs, reply *DoJobReply)
     mr.mu.Unlock()
     return false
   } else { // current job is done, ready for the next job
+    mr.output_statistic(args, reply)
     DPrintf("worker %s args %v reply %v", w, args, reply)
     return true
   }

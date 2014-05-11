@@ -147,8 +147,11 @@ func (mr *Master) WorkersAvailable() map[string]WorkerInfo {
   return m
 }
 
-func (mr *Master) output_statistic(args *DoJobArgs, reply *DoJobReply) {
-  mr.stasticFileWriter.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v\n", args.Operation, reply.Latency.Seconds(), args.Function, args.HDFSFile, args.HDFSSplitID))
+func (mr *Master) output_statistic(w string, args *DoJobArgs, reply *DoJobReply) {
+  mr.stasticFileWriter.WriteString(fmt.Sprintf("%s, %s, %v, %v, %v, %v, %v, %v, %v \n", time.Now(), args.Operation, w, reply.Latency.Seconds(), 
+  args.Function, args.HDFSFile, args.HDFSSplitID,
+  args.InputID, args.OutputID))
+  mr.stasticFileWriter.Flush()
 }
 
 func (mr *Master) assign_to_worker(w string, args *DoJobArgs, reply *DoJobReply) bool {
@@ -167,7 +170,7 @@ func (mr *Master) assign_to_worker(w string, args *DoJobArgs, reply *DoJobReply)
     mr.mu.Unlock()
     return false
   } else { // current job is done, ready for the next job
-    mr.output_statistic(args, reply)
+    mr.output_statistic(w, args, reply)
     DPrintf("worker %s args %v reply %v", w, args, reply)
     return true
   }

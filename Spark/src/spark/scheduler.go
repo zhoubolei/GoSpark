@@ -4,7 +4,6 @@ import "fmt"
 import "os"
 import "bufio"
 import "log"
-import "hadoop"
 import "math/rand"
 import "strings"
 import "time"
@@ -137,9 +136,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
 	  
-	  sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
-	  DPrintf("len(sinfo) = %d\n", len(sinfo))
-	  serverList := sinfo[SpInd]
+	  //sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
+	  DPrintf("len(sinfo) = %d\n", len(rdd.hadoopSplitInfo))
+	  serverList := rdd.hadoopSplitInfo[SpInd]
 	  
 	  
 	  addressWorkerInMaster := ""
@@ -182,7 +181,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
 	  ok, _ := d.master.AssignJob([]string{sIn.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname) }
 	  sOut.Hostname = sIn.Hostname
@@ -244,11 +243,10 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     // now we can do reduce
 		InputIDs := make([]Split, nSpl)
     reply := DoJobReply{}
-    //DPrintf("209 nSpl=%v SpInd=%v len(ss)=%v len(ss[i])= nRed=%v\n", nSpl, SpInd, len(ss), nRed)
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *(ss[i][SpInd]) }
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
-    args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
+    args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
     ok, _ := d.master.AssignJob([]string{sOut.Hostname}, true, &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  }
 	  
@@ -342,7 +340,7 @@ func (d *Scheduler) computeRDD(rdd* RDD, operationType string, fn string) []inte
 	  for i:=0; i<nOutputSplit; i++ {
 	    s := rdd.splits[i]
 	    reply := DoJobReply{}
-	    args := DoJobArgs{Operation: ReduceJob, InputIDs: []Split{*s}, Function: fn };
+	    args := DoJobArgs{Operation: ReduceJob, InputIDs: []Split{*s}, Function: fn, HDFSSplitID: i}
 	         
 	    ok, _ := d.master.AssignJob([]string{s.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	    if !ok {

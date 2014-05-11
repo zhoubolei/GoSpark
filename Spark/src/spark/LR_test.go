@@ -67,6 +67,7 @@ func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface
 }
 
 var Local = flag.Bool("local", false, "Run on vision server")
+var Big = flag.Bool("big", false, "use big data")
 
 func TestLR(t *testing.T) {
   c := NewContext("LR")
@@ -85,7 +86,12 @@ func TestLR(t *testing.T) {
     w[i] = rand.Float64()
   }
   
-  hadoopPath := "/user/featureSUN397_combine.csv"
+  hadoopPath := ""
+  if *Big {
+    hadoopPath = "/user/featureSUN397_large.csv"
+  } else {
+    hadoopPath = "/user/featureSUN397_combine.csv"
+  }
   hdfsServer := ""
   if *Local {
     hdfsServer = "hdfs://localhost:54310" 

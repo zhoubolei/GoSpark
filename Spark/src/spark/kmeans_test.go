@@ -121,7 +121,12 @@ func TestKMeans(t *testing.T) {
     centers[i] = center
   }
   
-  hadoopPath := "/user/featureSUN397_combine.csv"
+  hadoopPath := ""
+  if *Big {
+    hadoopPath = "/user/featureSUN397_large.csv"
+  } else {
+    hadoopPath = "/user/featureSUN397_combine.csv"
+  }
   hdfsServer := ""
   if *Local {
     hdfsServer = "hdfs://localhost:54310" 

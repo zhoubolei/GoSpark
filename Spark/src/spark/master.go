@@ -256,13 +256,35 @@ func (mr *Master) worker_index(w string) int {
   return len(mr.machines) - 1
 }
 
+func (mr *Master) worker_array() string {
+  mr.mu.Lock()
+  defer mr.mu.Unlock()
+  names := make([]string, 0)
+  for i := range mr.machines {
+    names = append(names, mr.machines[i])
+  }
+  n := len(mr.machines)
+  for i := n; i < 20; i++ {
+    names = append(names, "N/A")
+  }
+  l := strings.Join(names, ",")
+  return l
+}
+
 func (mr *Master) webHandler(ws *websocket.Conn) {
   var in []byte
   if err := websocket.Message.Receive(ws, &in); err != nil {
       fmt.Printf("error %v\n", err)
       return
   }
-  //fmt.Printf("Received: %s\n", string(in))
+  request := string(in)
+  //fmt.Printf("Received: %s\n", request)
+
+  if request == "names" { // retrieve worker name list
+    out := []byte(mr.worker_array())
+    websocket.Message.Send(ws, out)
+    return
+  } // else, stats
 
   // collect usage statistics
   n_jobs := make([]int, 20)

@@ -68,6 +68,7 @@ func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface
 
 var Local = flag.Bool("local", false, "Run on vision server")
 var Big = flag.Bool("big", false, "use big data")
+var Small = flag.Bool("small", false, "use small data")
 
 func TestLR(t *testing.T) {
   c := NewContext("LR")
@@ -78,6 +79,11 @@ func TestLR(t *testing.T) {
   
   D := 4096 +1
   DD := min(10,D)  // get first few elements to print out
+  if *Small {
+    D = 10 +1
+    DD = min(10,D)  // get first few elements to print out
+  }
+  
   
   alpha := 0.1     // alpha of gradient descend
   
@@ -89,6 +95,8 @@ func TestLR(t *testing.T) {
   hadoopPath := ""
   if *Big {
     hadoopPath = "/user/featureSUN397_large.csv"
+  } else if *Small {
+    hadoopPath = "/user/featureSUN397_combine_smallLR.csv"
   } else {
     hadoopPath = "/user/featureSUN397_combine.csv"
   }
@@ -109,7 +117,7 @@ func TestLR(t *testing.T) {
     fmt.Println("Iter:", i)
 	  mappedPoints := points.MapWithData("MapToVectorGradient", w); mappedPoints.name = "mappedPoints"  
     gradInterface := mappedPoints.Reduce("RedToOneGradient")
-    w = w.Minus((gradInterface.(Vector)).Multiply(alpha))
+    w = w.Minus((gradInterface.(*Vector)).Multiply(alpha))
     fmt.Printf("w[0:DD]=%v\n", w[0:DD])
   }
   Compare := points.MapWithData("MapToLRLabelAndTrueLabel", w).Collect();

@@ -181,7 +181,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
 	  ok, _ := d.master.AssignJob([]string{sIn.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
 	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname) }
 	  sOut.Hostname = sIn.Hostname
@@ -246,7 +246,7 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		for i:=0; i<nSpl; i++ { InputIDs[i] = *(ss[i][SpInd]) }
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
-    args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData};
+    args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
     ok, _ := d.master.AssignJob([]string{sOut.Hostname}, true, &args, &reply)
 	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  }
 	  

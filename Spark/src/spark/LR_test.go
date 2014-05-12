@@ -69,6 +69,7 @@ func (f *UserFunc) MapToLRLabelAndTrueLabel(xy interface{}, wInterface interface
 var Local = flag.Bool("local", false, "Run on vision server")
 var Big = flag.Bool("big", false, "use big data")
 var Small = flag.Bool("small", false, "use small data")
+var MaxIter = flag.Int("iter", 10, "max iteration")
 
 func TestLR(t *testing.T) {
   c := NewContext("LR")

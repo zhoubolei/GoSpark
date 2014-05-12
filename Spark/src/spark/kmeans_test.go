@@ -141,7 +141,7 @@ func TestKMeans(t *testing.T) {
   // points (x,y) -> (index of the closest center, )
   
   var mappedPoints *RDD
-  for i := 0; i < 10; i++ {
+  for i := 0; i < *MaxIter; i++ {
     fmt.Println("Iter:", i)
 	  mappedPoints = points.MapWithData("MapToClosestCenter", centers); mappedPoints.name = "mappedPoints"   
 	  sumCenters := mappedPoints.ReduceByKey("AddCenterWCounter") ; sumCenters.name = "sumCenters"  

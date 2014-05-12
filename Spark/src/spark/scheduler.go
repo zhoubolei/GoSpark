@@ -110,6 +110,18 @@ func (d *Scheduler) findServerAddress(addressHDFS string) string {
   return ""
 }
 
+// turn addressesHDFS 
+func (d *Scheduler) findServerAddresses(addressesHDFS []string) []string {
+  hostnamesWithPort := []string {}
+  for _, addressHDFS := range addressesHDFS {
+    if hostnameWithPort := d.findServerAddress(addressHDFS); hostnameWithPort != "" {
+      hostnamesWithPort := append(hostnamesWithPort, hostnameWithPort)
+    }
+  }
+  return hostnamesWithPort
+}
+
+
 func randomWorkerFromMap(wlist map[string] WorkerInfo) string {
 	randInd := rand.Int() % len(wlist)
 	for k := range wlist {
@@ -122,70 +134,54 @@ func randomWorkerFromMap(wlist map[string] WorkerInfo) string {
   return ""
 }
 
+const (
+  RetryInterval          = 100 * time.Millisecond
+  RetryMax               = 10
+}
+// SpInd here is 0~nSplit-1 of rdd, not the 64bit id
 func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
-  // if run before than check if the result exists, if exists don't run again;
   DPrintf("Scheduler.runThisSplit name:%v op: %v SpInd:%d start",  rdd.name, rdd.operationType, SpInd)
   defer DPrintf("Scheduler.runThisSplit name:%v op: %v SpInd:%d end",  rdd.name, rdd.operationType, SpInd )
   
   switch rdd.operationType {
   case HDFSFile:
 	  sOut := rdd.splits[SpInd]
-    if(sOut.Hostname != "") {  // should also send msg to check
+    if sOut.Hostname != "" && splitExistAt(sOut.Hostname, sOut.SplitID) { 
       return nil
     }
 	  reply := DoJobReply{}
 	  args := DoJobArgs{Operation: ReadHDFSSplit, OutputID: sOut.SplitID, HDFSSplitID: SpInd, HDFSFile: rdd.filePath};
-	  
-	  //sinfo := hadoop.GetSplitInfoSlice(rdd.filePath)
+
 	  DPrintf("len(sinfo) = %d\n", len(rdd.hadoopSplitInfo))
-	  serverList := rdd.hadoopSplitInfo[SpInd]
+	  serverList := rdd.hadoopSplitInfo[SpInd]  // server the hold this HDFS Split
+	    
+	  addressOfWorkersInMaster := d.findServerAddresses(serverList)
 	  
-	  
-	  addressWorkerInMaster := ""
-	  
-	  done := false
-	  // First try the ones with owning the split
-	  offset := rand.Int()
-	  if offset < 0 { offset = -offset}  // randomly pick an offset 
-	  for j:= 0; j<len(serverList); j++ {
-	    sid   := (offset+j) % len(serverList)  
-	    addressHDFS := serverList[sid]
-	    addressWorkerInMaster = d.findServerAddress(addressHDFS)
-	    if (addressWorkerInMaster != ""){
-			  ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
-			  if(!ok) { 
-			    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
-			  } else {
-			    done = true
-			    break
-			  }
+	  // Call master with preferred list, but not restricted to those because HDFS can read remotely though slower
+	  nRetry := 0
+	  for ok, successWorker := d.master.AssignJob(addressOfWorkersInMaster, false, &args, &reply); !ok {
+	    if ++nRetry > RetryMax {
+	      log.Fatalf("Scheduler.runThisSplit HDFSFile fail after %d retries, name:%v SpInd:%d worker:%v, retry after %v", RetryMax, rdd.name, SpInd, addressWorkerInMaster, RetryInterval)
+	      break
 	    }
-	    time.Sleep(100*time.Millisecond)
+			log.Printf("Scheduler.runThisSplit HDFSFile fail, name:%v SpInd:%d worker:%v, retry %d after %v",  rdd.name, SpInd, addressWorkerInMaster, nRetry, RetryInterval) 
+	    time.Sleep(RetryInterval)
+	    rdd.splits[SpInd].Hostname = successWorker
 	  }
 	  
-	  for !done {
-	    addressWorkerInMaster = randomWorkerFromMap(d.master.WorkersAvailable())
-	    ok, _ := d.master.AssignJob([]string{addressWorkerInMaster}, true, &args, &reply) // shenjiasi: need to change these args
-		  if(!ok) { 
-		    log.Printf("Scheduler.runThisSplit HDFSFile not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, addressWorkerInMaster) 
-		  } else {
-		    done = true
-		    break
-		  }
-		  time.Sleep(100*time.Millisecond)
-	  }
-	  
-	  rdd.splits[SpInd].Hostname = addressWorkerInMaster
-  
   case Map:
 	  sIn := rdd.prevRDD1.splits[SpInd]
 	  sOut := rdd.splits[SpInd]
 	  reply := DoJobReply{}
-	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
-	  ok, _ := d.master.AssignJob([]string{sIn.Hostname}, true, &args, &reply) // shenjiasi: need to change these args
-	  if(!ok) { log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname) }
-	  sOut.Hostname = sIn.Hostname
-	  
+	  args := DoJobArgs{Operation: MapJob, InputID: sIn.SplitID, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};  /*SpInd is put in HDFSSplitID for profiling purpose */
+	  ok, _ := d.master.AssignJob([]string{sIn.Hostname}, true, &args, &reply)
+	  if(!ok) { 
+	    log.Printf("Scheduler.runThisSplit Map not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sIn.Hostname)
+	    sOut.Hostname = "" 
+	    return fmt.Errorf("Bad mapping")
+	  } else {
+	    sOut.Hostname = sIn.Hostname
+	  }
 	  
   case ReduceByKey:
     // shuffleSplits should be moved to rdd from prev rdd 
@@ -194,11 +190,9 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
     var ss [][]*Split// shuffleSplits
     nSpl := rdd.prevRDD1.length
     nRed := rdd.length
-    // If shuffle files not correspond to the output
     
     rdd.prevRDD1.shuffleMu.Lock()
-    
-    //DPrintf("172 rdd.prevRDD1.shuffleN=%v nRed=%v\n", rdd.prevRDD1.shuffleN, nRed)
+    // If shuffle files not correspond to the output
     if(rdd.prevRDD1.shuffleN != nRed) {
       rdd.prevRDD1.shuffleN = nRed
       ss = make([][]*Split, nSpl)
@@ -209,33 +203,48 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
           ss[i][j].Hostname = rdd.prevRDD1.splits[i].Hostname
         }
       }
-      
       rdd.prevRDD1.shuffleSplits = ss  // may want to delete old shuffle splits
-      
-      y := make(Yielder)
-      // do hashPart on each input split
-      for i:=0; i<nSpl; i++ {
-			  go func(i int, nRed int){
-			    OutputIDs := make([]Split, nRed)
-			    for j:=0; j<nRed; j++ { OutputIDs[j] = *(ss[i][j]) }
-			    args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
-			  
-			    reply := DoJobReply{}
-			    ok, _ := d.master.AssignJob([]string{rdd.prevRDD1.splits[i].Hostname}, true, &args, &reply) // shenjiasi: need to change these args
-	        if(!ok) { log.Printf("Scheduler.runThisSplit HashPartJob not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, rdd.prevRDD1.splits[i].Hostname)  }
-	        
-			    for j:=0; j<nRed; j++ { 
-            (*(ss[i][j])).Hostname = rdd.prevRDD1.splits[i].Hostname			      
-			    }
-	        
-			    y <- 1
-			  } (i, nRed)
-      }
-      for i:=0; i<nSpl; i++ {
-        <- y
-      }
     } else {
       ss = rdd.prevRDD1.shuffleSplits
+    }
+    
+    
+      
+    y := make(Yielder)
+    // do hashPart on each input split
+    for i:=0; i<nSpl; i++ {
+		  go func(i int, nRed int){
+			  OutputIDs := make([]Split, nRed)
+			  for j:=0; j<nRed; j++ { OutputIDs[j] = *(ss[i][j]) }
+			  args := DoJobArgs{Operation: HashPartJob, InputID: rdd.prevRDD1.splits[i].SplitID, OutputIDs: OutputIDs};
+			
+			  reply := DoJobReply{}
+			  
+        if ok, _ := d.master.AssignJob([]string{rdd.prevRDD1.splits[i].Hostname}, true, &args, &reply); !ok  { 
+          log.Printf("Scheduler.runThisSplit HashPartJob fail, name:%v SpInd:%d worker:%v, rerun the Split in prevRDD",  rdd.name, SpInd, rdd.prevRDD1.splits[i].Hostname) 
+			    y <- i
+        }
+        
+        // Now the hash splits of this split is done, update the split  
+			  for j:=0; j<nRed; j++ { 
+          (*(ss[i][j])).Hostname = rdd.prevRDD1.splits[i].Hostname			      
+			  }
+	      
+			  y <- nil
+			} (i, nRed)
+    }
+    // aggregate all missing splits
+    misSplitInd := []string{} 
+    for i:=0; i<nSpl; i++ {
+      output := <- y
+      switch p := p.(type) {
+      case int:
+          misSplitInd = append(misSplitInd, strconv.Itoa(p))
+      }
+    }
+    if len(misSplitInd) > 0 {
+      rdd.prevRDD1.shuffleMu.Unlock()
+      return fmt.Errorf("ReduceByKey %s", strings.Join(misSplitInd, " "))
     }
     rdd.prevRDD1.shuffleMu.Unlock()
     
@@ -247,30 +256,80 @@ func (d *Scheduler) runThisSplit(rdd *RDD, SpInd int) error {
 		
     sOut.Hostname = randomWorkerFromMap(d.master.WorkersAvailable()) // get one from some free worker
     args := DoJobArgs{Operation: ReduceByKeyJob, InputIDs: InputIDs, OutputID: sOut.SplitID, Function: rdd.fnName, Data: rdd.fnData, HDFSSplitID: SpInd};
-    ok, _ := d.master.AssignJob([]string{sOut.Hostname}, true, &args, &reply)
-	  if(!ok) { log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  }
+       
+	  for ok, _ := d.master.AssignJob([]string{}, false, &args, &reply); !ok {    // randomly pick a worker 
+	    log.Printf("Scheduler.runThisSplit ReduceByKey not ok, name:%v SpInd:%d worker:%v",  rdd.name, SpInd, sOut.Hostname)  
+      time.Sleep(RetryInterval)
+	  }
+	  
+	  if !reply.OK {
+	    // rerun the missing splits, can be done in parallel
+	    for _, misSplitID := range reply.NeedSplits {
+	      ind := findMisSplitIndFromMap(ss, misSplitID)
+        time.Sleep(RetryInterval)
+	      d.runSplit( rdd.prevRDD1, i )
+	    }
+      rdd.prevRDD1.shuffleMu.Lock()
+	  }
 	  
 	 
   }
   return nil
 }
 
+func findMisSplitIndFromMap(sp [][]*Split, splitId string) int {
+  for i, _ := range sp {
+    for j, _ := range sp[i] {
+      if *(sp[i][j]).SplitID == splitId {
+        return i
+      }
+    }
+  }
+  return -1 // fatal
+}
+
+// gaurantees the split is done by recursively run the previous split in this stage given previous stage is done
 func (d *Scheduler) runSplit(rdd *RDD, SpInd int) Yielder {
   DPrintf("Scheduler.runSplit name:%v op: %v SpInd:%d start",  rdd.name, rdd.operationType, SpInd)
   y := make(Yielder)
   go func(){
     defer DPrintf("Scheduler.runSplit name:%v op: %v SpInd:%d end",  rdd.name, rdd.operationType, SpInd )
     var cy1, cy2 Yielder
+RERUN:
     if rdd.dependType != Wide && rdd.prevRDD1 != nil {
       cy1 = d.runSplit(rdd.prevRDD1, SpInd)
     } 
     if rdd.dependType != Wide && rdd.prevRDD2 != nil {
       cy2 = d.runSplit(rdd.prevRDD2, SpInd)
     } 
-    if(cy1 != nil){ <- cy1 }
-    if(cy2 != nil){ <- cy2 }
-    /*err := */d.runThisSplit(rdd, SpInd)
-    y <- 1
+    if(cy1 != nil){ 
+      if Err := <- cy1; Err != nil {
+        y <- Err
+        close(y)
+        return
+      } 
+    }
+    if(cy2 != nil){ 
+      Err := <- cy2; 
+      if Err := <- cy1; Err != nil {
+        y <- Err
+        close(y)
+        return
+      }   
+    }
+    
+    err := d.runThisSplit(rdd, SpInd)
+    if err != nil {
+      if rdd.dependType == Wide {
+        y <- fmt.Errorf("")
+        close(y)
+        return
+      } else {
+        goto RERUN
+      }        
+    }
+    
+    y <- nil
     close(y)
   } ()
   return y

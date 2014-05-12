@@ -209,6 +209,7 @@ func (mr *Master) find_least_load(workersToConsider []string) string {
   return min_worker
 }
 
+// peterkty: preferably should assign to workers with lightest load first
 func (mr *Master) AssignJob(workersPreferred []string, force bool, args *DoJobArgs, reply *DoJobReply) (bool, string) {
   // use nCore to assign nCore jobs to select workers, return the worker chosen
 

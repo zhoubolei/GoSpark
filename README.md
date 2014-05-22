@@ -1,4 +1,8 @@
-824project
+MIT EECS 6.824: Distributed Systems 
+Spring 2014
+
+Course project: GoSpark: An In-Memory Distributed Computation Platform in Go
+Kuan-Ting Yu, Jiasi Shen, Bolei Zhou
 ==========
 
 

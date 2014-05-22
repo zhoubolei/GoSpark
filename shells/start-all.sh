@@ -5,7 +5,7 @@
 starttmux() {
 #local hosts=(vision24 vision28 vision35)
 local hosts=(vision25 vision26 vision27 vision28 vision29 vision30 vision31 vision32 vision33 vision34 vision35 vision36 vision37 vision38)
-local UNAME=hduser
+local UNAME=XXX # removed for security reason
  
 tmux new-window "ssh $UNAME@${hosts[0]}"
 unset hosts[0];
